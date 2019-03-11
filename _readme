@@ -1,0 +1,24 @@
+Repository description:
+	__init__.py: initiation file for python package - for through architecture of repository
+	
+	[HH_Modules]: unified folder for all Horns&Hooves function libraries (modules)
+		__init__.py: initiation file for python package - for through architecture of repository
+		hh_dates.py: common dates functions library
+		hh_files.py: common files functions library
+		hh_mri: MRI project functions library
+		hh_timeseries.py: common timeseries functions library
+	
+	[HH_Projects]: unified folder for all Horns&Hooves project files
+	
+		[01_Market_Risk_Indicator]: MRI project folder
+			[Data_Files]: data files for MRI project
+				[Source_Files]: source data files for MRI project
+					mri_data.xlsx: main source data file for MRI project
+				[Test_Files]: data files for testing MRI project
+					bus_dts.xlsx: revision file for comparing MatLab and Python manipulations with business dates
+					bus_nyse_dts.xlsx:	revision file for comparing MatLab and Python manipulations with NYSE closure dates
+			_readme: description file for MRI project folder
+			MRI_engine.pynb: main executable file for MRI project
+			MRI_showcase.pynb:	demonstration of functionality for MRI project				
+			tester_igharok.pynb:	igharok's file for code exercises		
+		

@@ -2,12 +2,15 @@
 
 def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_date = '2018-12-31', interval = 'day'):
 # Version 0.02
-# Creating the business dates list in form of pd.DatetimeIndex
-# Returns pd.DatetimeIndex object
-# date_type (string) - type of first and last dates representation: 'string' = '%Y-%m-%d'; 'date' = datetime.date
-# begin_date (datetime.date or string) - first date of dates list in date_type mentioned format
-# end_date (datetime.date or string) - last date of dates list in date_type mentioned format
-# interval (string) - period of dates list: 'day' = days; 'week' = week ends; 'month' = month ends; 'quarter' = quarter ends; 'year' = year ends
+# FUNCTIONALITY: 
+#  Creating the business dates list in form of pd.DatetimeIndex
+# OUTPUT:
+#  bus_index (pd.DatetimeIndex) - business dates list
+# INPUT:
+#  date_type (string) - type of first and last dates representation: 'string' = '%Y-%m-%d'; 'date' = datetime.date
+#  begin_date (datetime.date or string) - first date of dates list in date_type mentioned format
+#  end_date (datetime.date or string) - last date of dates list in date_type mentioned format
+#  interval (string) - period of dates list: 'day' = days; 'week' = week ends; 'month' = month ends; 'quarter' = quarter ends; 'year' = year ends
 
     import pandas as pd # For date_range functionality
     from datetime import date # For date/string converting functionality
@@ -32,13 +35,16 @@ def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_dat
 
 def hh_drop_nyse_closures(date_index):
 # Version 0.02
-# Cleaning nyse closure days from the business dates list in form of pd.DatetimeIndex
-# Returns pd.DatetimeIndex object
-# date_index (pd.DatetimeIndex) - business dates list
+# FUNCTIONALITY:
+#  Cleaning nyse closure days from the business dates list in form of pd.DatetimeIndex
+# OUTPUT:
+#  nyse_index (pd.DatetimeIndex object) - cleaned from NYSE closures business dates list
+# INPUT:
+#  date_index (pd.DatetimeIndex) - business dates list
 
 # ATTENTION!!! 
-# You need to perform the next line to make Jupyter Lab engine to use function:
-# pip install pandas_market_calendars
+#  You need to perform the next line to make Jupyter Lab engine to use key function get_calendar:
+#  pip install pandas_market_calendars
 
     import pandas as pd # For Timeseries
     from datetime import date # For date/string converting functionality    
@@ -57,7 +63,7 @@ def hh_drop_nyse_closures(date_index):
     # Creating temp timeseries for filtering
     ser_temp = pd.Series(0, index = date_index) 
     # Performing filtering
-    date_nyse_index = ser_temp[nyse_valid_days].index 
+    nyse_index = ser_temp[nyse_valid_days].index 
     
     print('hh_drop_nyse_closures: NYSE closure dates successfully dropped from date index')
-    return date_nyse_index
+    return nyse_index
