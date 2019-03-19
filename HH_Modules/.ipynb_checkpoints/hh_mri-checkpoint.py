@@ -2,19 +2,25 @@
 
 def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path, hdf_object_key, date_index, update_hdf = True):
     """
-    Version 0.03
+    Version 0.04 2019-03-13
     
     FUNCTIONALITY: 
-      TO FILL Functionality description
+      1) Taking, checking and converting model information from the source xlsx file
+      2) Extracting asset and MRI descriptions from model information
+      3) Creating/updating HDF5 file with structured source data (if needed)
+      4) Taking structured data for selected date interval from HDF5 file
+      5) Filling missed data by unlimited forward filling
     OUTPUT:
-      TO FILL Returns
+      df_model_asset (pd.DataFrame) - asset list and weights descripted at model tab
+      df_model_MRI (pd.DataFrame) - market risk indexes list and weights descripted at model tab 
+      df_selected_data (pd.DataFrame) - result of data import from source file and next transormations
     INPUT:
       source_file_path (string) - path to the source data xlsx file
       source_model_sheet (string) - name of the model sheet in source data file sheets list
       hdf_file_path (string) - path to the converted source data keeping HDF5 file
       hdf_object_key (string) - data object key to access converted data from HDF5 file
       date_index (pd.DatetimeIndex) - dates list to take from source file
-      update_hdf (boolean) - decision flag if to update data keeping file from the source file or to use existing data keeping file
+      update_hdf (boolean) - decision flag if to update data keeping file from the source file or to use existing data keeping file (default - True)
     """
     
     import numpy as np
@@ -80,13 +86,14 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
     last_date = date_index[date_index.size - 1].strftime(date_format)
     df_selected_data = pd.read_hdf(hdf_file_path, hdf_object_key, where = ['index >= first_date & index <= last_date'])
     print('hh_build_mri_from_model: Limited data from HDF5 file', hdf_file_path, 'extracted successfully')  
+        
+    # Completing data table with starting and finishing ranges of rows in case of extrracted date index is shorter than needed
+    df_selected_data = df_selected_data.reindex(date_index.tz_localize(None))
+    print('hh_build_mri_from_model: Missed border date rows in limited data table added')
     
     # Filling missing data with previous filled values for all columns of data table
     df_selected_data = hh_missing_data_manager(df_selected_data, manage_option = 'previous')
     print('hh_build_mri_from_model: Missed data in limited data table filled successfully')
-        
-    # Completing data table with starting and finishing ranges of rows in case of extrracted date index is shorter than needed
-    df_selected_data = df_selected_data.reindex(date_index.tz_localize(None), method = 'ffill')
-    print('hh_build_mri_from_model: Missed border date rows in limited data table added')
+
     
-    return df_selected_data # Temporary return to check function work
+    return [df_model_asset, df_model_MRI, df_selected_data] # Temporary return to check function work

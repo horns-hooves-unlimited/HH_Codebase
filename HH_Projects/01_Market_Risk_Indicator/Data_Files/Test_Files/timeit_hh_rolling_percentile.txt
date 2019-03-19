@@ -1,0 +1,32 @@
+ser_ranks_less_any = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, min_interpretation = 'any', manage_option = 'less')
+hh_rolling_percentile: Percentile rank calculation with option less performed successfully
+4.34 s ± 252 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_less_equal_any = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, min_interpretation = 'any', manage_option = 'less_equal')
+hh_rolling_percentile: Percentile rank calculation with option less_equal performed successfully
+3.69 s ± 59 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_mean_any = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, min_interpretation = 'any', manage_option = 'mean')
+hh_rolling_percentile: Percentile rank calculation with option mean performed successfully
+6.11 s ± 82.4 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_wnd_any = hh_rolling_percentile(df_selected_data['iv_us'], 30, 60, min_interpretation = 'any', manage_option = 'mean')
+hh_rolling_percentile: Percentile rank calculation with option mean performed successfully
+3.26 s ± 29 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+
+ser_ranks_less_notNaN = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, manage_option = 'less')
+hh_rolling_percentile: Percentile rank calculation with option less performed successfully
+2.44 s ± 188 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_less_equal_notNaN = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, manage_option = 'less_equal')
+hh_rolling_percentile: Percentile rank calculation with option less_equal performed successfully
+1.58 s ± 47.8 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_mean_notNaN = hh_rolling_percentile(df_selected_data['iv_eu'], 252, 252000, manage_option = 'mean')
+hh_rolling_percentile: Percentile rank calculation with option mean performed successfully
+4.22 s ± 104 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+
+ser_ranks_wnd_notNaN = hh_rolling_percentile(df_selected_data['iv_us'], 30, 60, manage_option = 'mean')
+hh_rolling_percentile: Percentile rank calculation with option mean performed successfully
+2.18 s ± 28 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)

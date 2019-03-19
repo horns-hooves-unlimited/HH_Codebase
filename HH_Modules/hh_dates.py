@@ -9,11 +9,11 @@ def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_dat
     OUTPUT:
       bus_index (pd.DatetimeIndex) - business dates list
     INPUT:
-      date_type (string) - type of first and last dates representation: 'string' = '%Y-%m-%d'; 'date' = datetime.date
-      begin_date (datetime.date or string) - first date of dates list in date_type mentioned format
-      end_date (datetime.date or string) - last date of dates list in date_type mentioned format
+      date_type (string) - type of first and last dates representation: 'string' (default) = '%Y-%m-%d'; 'date' = datetime.date
+      begin_date (datetime.date or string) - first date of dates list in date_type mentioned format (default '1900-01-01')
+      end_date (datetime.date or string) - last date of dates list in date_type mentioned format (default '2018-12-31')
       interval (string) - period of dates list: 
-        'day' = days; 
+        'day' = days (default); 
         'week' = week ends; 
         'month' = month ends; 
         'quarter' = quarter ends; 
