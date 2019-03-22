@@ -119,7 +119,7 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
 
 def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', factor_period = 'year'):
     """
-    Version 0.03 2019-03-20
+    Version 0.04 2019-03-22
         
     FUNCTIONALITY: 
       Converts data vector to vector of simple moving average means of every element in the part of vector, 
