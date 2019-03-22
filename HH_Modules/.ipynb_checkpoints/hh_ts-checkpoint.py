@@ -46,10 +46,10 @@ def hh_missing_data_manager(df_to_manage, manage_option = 'previous', remove_emp
 
 def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', manage_option = 'mean'):
     """
-    Version 0.02 2019-03-19
+    Version 0.03 2019-03-20
     
     FUNCTIONALITY: 
-      Convert data vector to vector of percentile ranks of every element in the part of vector, formed as rolling window that ends with this element
+      Converts data vector to vector of percentile ranks of every element in the part of vector, formed as rolling window that ends with this element
     OUTPUT:
       ser_ranks (pd.Series) - processed data vector of percentile ranks
     INPUT:
@@ -68,6 +68,14 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
     import numpy as np
     import pandas as pd
  
+    # Checking input parameters
+    if (min_wnd <= 0):
+        min_wnd = 1
+        print('hh_rolling_percentile: WARNING! Min_wnd parameter value is not positive, so it is changed to', min_wnd)
+    if (max_wnd < min_wnd):
+        max_wnd = min_wnd
+        print('hh_rolling_percentile: WARNING! Max_wnd parameter value is less than min_wnd parameter value, so it is changed to', max_wnd)
+        
     if (min_interpretation == 'any'):
         # Initializing resulting variable
         ser_ranks = pd.Series(np.NaN, index = ser_to_manage.index)
@@ -94,16 +102,16 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
     else:
         # Defining calculating function for each manage option
         if (manage_option == 'less'):
-            rolling_wnd_rank = lambda arr_rolling_wnd: (pd.Series(arr_rolling_wnd).rank(method = 'min').iloc[-1] - 1) / pd.Series(arr_rolling_wnd).notna().sum()
+            rolling_wnd_rank = lambda ser_rolling_wnd: (ser_rolling_wnd.rank(method = 'min').iloc[-1] - 1) / ser_rolling_wnd.notna().sum()
             
         if (manage_option == 'less_equal'):
-            rolling_wnd_rank = lambda arr_rolling_wnd: pd.Series(arr_rolling_wnd).rank(pct = True, method = 'max').iloc[-1]
+            rolling_wnd_rank = lambda ser_rolling_wnd: ser_rolling_wnd.rank(pct = True, method = 'max').iloc[-1]
             
         if (manage_option == 'mean'):
-            rolling_wnd_rank = lambda arr_rolling_wnd: ((pd.Series(arr_rolling_wnd).rank(method = 'min').iloc[-1] - 1) / pd.Series(arr_rolling_wnd).notna().sum() + pd.Series(arr_rolling_wnd).rank(pct = True, method = 'max').iloc[-1]) / 2             
+            rolling_wnd_rank = lambda ser_rolling_wnd: ((ser_rolling_wnd.rank(method = 'min').iloc[-1] - 1) / ser_rolling_wnd.notna().sum() + ser_rolling_wnd.rank(pct = True, method = 'max').iloc[-1]) / 2             
         # Calculating percentiles
         
-        ser_ranks = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).apply(rolling_wnd_rank, raw = True)
+        ser_ranks = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).apply(rolling_wnd_rank, raw = False)
         
     print('hh_rolling_percentile: Percentile rank calculation with min_interpretation', min_interpretation ,'and option', manage_option ,'performed successfully')
     return ser_ranks
@@ -111,10 +119,10 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
 
 def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', factor_period = 'year'):
     """
-    Version 0.02 2019-03-19
+    Version 0.03 2019-03-20
         
     FUNCTIONALITY: 
-      Convert data vector to vector of simple moving average means of every element in the part of vector, 
+      Converts data vector to vector of simple moving average means of every element in the part of vector, 
       formed as rolling window that ends with this element
     OUTPUT:
       ser_SMA (pd.Series) - processed data vector of simple moving averages
@@ -134,7 +142,15 @@ def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = '
     import numpy as np
     import pandas as pd
     from math import sqrt
-
+ 
+    # Checking input parameters
+    if (min_wnd <= 0):
+        min_wnd = 1
+        print('hh_rolling_simple_MA: WARNING! Min_wnd parameter value is not positive, so it is changed to', min_wnd)
+    if (max_wnd < min_wnd):
+        max_wnd = min_wnd
+        print('hh_rolling_simple_MA: WARNING! Max_wnd parameter value is less than min_wnd parameter value, so it is changed to', max_wnd)
+        
     # Annual factor determining
     annual_factor_dict = {'day': 260, 'month': 12, 'year': 1}
     annual_factor = sqrt(annual_factor_dict[factor_period])
@@ -162,40 +178,127 @@ def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = '
     print('hh_rolling_simple_MA: Moving average calculation with min_interpretation', min_interpretation ,'performed successfully')
     return ser_SMA
 
-
-def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_perc_bottom = 0, winsor_perc_top = 100, manage_option = 'standart'):
+def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent', winsor_bottom = 0, winsor_top = 1, fill_option = 'standard'):
     """
-    Version 0.01 2019-03-19
+    Version 0.02 2019-03-20
     
     FUNCTIONALITY: 
-      TO FILL !!! Convert data vector to vector of simple moving avarage means of every element in the part of vector, 
+      1) Calculates rolling means, deviations and z scores for source data vector
+      2) Winsorizing z data vector for each rolling window
+      2) Creating z matrix from z winsorized data vectors for each rolling window
     OUTPUT:
-      TO FILL !!! ser_SMA (pd.Series) - processed data vector of simple moving averages
+      df_z_score_res (pd.DataFrame) - set of data vectors:
+            'Mean' (pd.Series) - rolling means with defined window parameters
+            'Std' - rolling standard deviations with defined window parameters
+            'Z Score' - rolling normalized z scores with defined window parameters
+            'Z Winsorized' - rolling normalized z scores with defined window parameters and winsorizing rules
+      df_z_matrix (pd.DataFrame) - set of z scores: each columns is a z score vector for the corresponding rolling window with defined window parameters and winsorizing rules
     INPUT:
       ser_to_manage (pd.Series) - source data vector
-      min_wnd (integer) - minimal rolling window width
-      max_wnd (integer) - maximal rolling window width      
-      winsor_perc_bottom (integer) - bottom percentile to set minimal outliers
-      winsor_perc_top (integer) - top percentile to set maximal outliers      
-      TO FILL!!! manage_option (string) - z filling defining rule: 
+      min_wnd (integer) - minimal rolling window width (the quantity of not NaN elements in rolling window need to be more or equal min_wnd)
+      max_wnd (integer) - maximal rolling window width     
+      winsor_option (string) - winsorisation borders interpretating rule:
+            'none' - no winsorizing
+            'percent' (default) - as percent values from 0 to 1
+            'value' - as scalar values without limitations
+      winsor_perc_bottom (integer) - bottom percentile of preliminary calculated z-scores to set minimal outliers
+      winsor_perc_top (integer) - top percentile of preliminary calculated z-scores to set maximal outliers      
+      fill_option (string) - winorized z vector filling defining rule:
+             'standard' - only diagonal values of z matrix             
+             'backfill' - diagonal values of z matrix added with values of first not NaN column of z matrix
     """
 
     import numpy as np
     import pandas as pd
     
-    # Initializing resulting variable
-    df_z_score_res = pd.DataFrame()
+    # Checking input parameters
+    if (min_wnd <= 0):
+        min_wnd = 1
+        print('hh_rolling_z_score: WARNING! Min_wnd parameter value is not positive, so it is changed to', min_wnd)
+    if (max_wnd < min_wnd):
+        max_wnd = min_wnd
+        print('hh_rolling_z_score: WARNING! Max_wnd parameter value is less than min_wnd parameter value, so it is changed to', max_wnd)
+    if (winsor_option == 'percent'):
+        if (winsor_bottom < 0):
+            winsor_bottom = 0
+            print('hh_rolling_z_score: WARNING! Winsor_bottom parameter value is less than 0, so it is changed to', winsor_bottom)
+        if (winsor_bottom > 1):
+            winsor_bottom = 1
+            print('hh_rolling_z_score: WARNING! Winsor_bottom parameter value is more than 1, so it is changed to', winsor_bottom)
+        if (winsor_top > 1):
+            winsor_top = 1
+            print('hh_rolling_z_score: WARNING! Winsor_top parameter value is more than 1, so it is changed to', winsor_top)
+        if (winsor_bottom > winsor_top):
+            winsor_top = winsor_bottom
+            print('hh_rolling_z_score: WARNING! Winsor_top parameter value is less than winsor_bottom parameter value, so it is changed to', winsor_top)
+    if (winsor_option == 'value'):
+        if (winsor_bottom > winsor_top):
+            winsor_top = winsor_bottom
+            print('hh_rolling_z_score: WARNING! Winsor_top parameter value is less than winsor_bottom parameter value, so it is changed to', winsor_top)        
 
+    # Initializing resulting variables
+    date_format = '%Y-%m-%d'
+    df_z_score_res = pd.DataFrame()
+    df_z_score_res.index.name = ser_to_manage.name
+    df_z_matrix = pd.DataFrame(np.NaN, index = ser_to_manage.index, columns = ser_to_manage.index)
+    df_z_matrix.index.name = ser_to_manage.name
+    
     # Calculating rolling mean
     ser_rolling_mean = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).mean()
     # Calculating rolling standard deviation    
     ser_rolling_std = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).std()
     # Calculating rolling z-score
     ser_rolling_z_score = (ser_to_manage - ser_rolling_mean) / ser_rolling_std
+    print('hh_rolling_z_score: Mean, Std and Z Score series calculated succesfully')
+
+    #Calculating z-score matrix
+    for end_wnd_index in range(min_wnd, ser_to_manage.size + 1):        
+        # Isolating rolling window for particular data vector element
+        start_wnd_index = max(0, end_wnd_index - max_wnd)
+        ser_rolling_wnd = ser_to_manage[start_wnd_index : end_wnd_index]
+
+        ser_z_scores = pd.Series(np.NaN, index = ser_to_manage.index)
+        # Checking for at list min_wnd elements of rolling window are np.NaN
+        if (ser_rolling_wnd.notna().sum() >= min_wnd):
+            ser_z_scores = (ser_rolling_wnd - ser_rolling_wnd.mean()) / ser_rolling_wnd.std()
+            
+            # Winsorization process
+            if (winsor_option == 'none'):
+                bool_to_winsor = False
+            else:
+                bool_to_winsor = True
+            
+            while (bool_to_winsor):       
+                # Value based winsorization
+                if (winsor_option == 'value'):
+                    ser_z_scores.clip(lower = winsor_bottom, upper = winsor_top, inplace = True)
+                if (winsor_option == 'percent'):
+                    ser_z_scores.clip(lower = ser_z_scores.quantile(winsor_bottom), upper = ser_z_scores.quantile(winsor_top), inplace = True)
+                    bool_to_winsor = False
+                # Recalculating of z scores
+                ser_z_scores = (ser_z_scores - ser_z_scores.mean()) / ser_z_scores.std()                
+                # Checking for boundaries
+                if (winsor_option == 'value'):
+                    if (((ser_z_scores[ser_z_scores < winsor_bottom].size) + (ser_z_scores[ser_z_scores > winsor_top].size)) == 0):
+                        bool_to_winsor = False
+                        
+            # Filling z matrix column part after the winsorizing (if needed)
+            df_z_matrix.iloc[start_wnd_index : end_wnd_index, end_wnd_index - 1] = ser_z_scores.values
+    
+    print('hh_rolling_z_score: Z Matrix values calculated succesfully')
+    
+    # Getting winsorized z meanings       
+    ser_z_winsorized = pd.Series(np.copy(np.diag(df_z_matrix)), index = ser_to_manage.index)
+    # Backfilling with first not NaN column of z matrix
+    if (fill_option == 'backfill'):
+        ind_valid_index = ser_z_winsorized.index.get_loc(ser_z_winsorized.first_valid_index())
+        ser_z_winsorized[ : ind_valid_index] = df_z_matrix.iloc[ : ind_valid_index, ind_valid_index]
+    print('hh_rolling_z_score: Rolling winsorized Z Score series calculated succesfully')
     
     df_z_score_res['Mean'] = ser_rolling_mean
     df_z_score_res['Std'] = ser_rolling_std    
-    df_z_score_res['Z-Score'] = ser_rolling_z_score     
+    df_z_score_res['Z Score'] = ser_rolling_z_score
+    df_z_score_res['Z Winsorized'] = ser_z_winsorized
   
-    print('hh_rolling_z_score: Something performed successfully')
-    return df_z_score_res
+    print('hh_rolling_z_score: Calculating Z Score data with winsor_option', winsor_option, 'and fill_option', fill_option, 'performed successfully')
+    return [df_z_score_res, df_z_matrix]
