@@ -201,8 +201,8 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
             'none' - no winsorizing
             'percent' (default) - as percent values from 0 to 1
             'value' - as scalar values without limitations
-      winsor_perc_bottom (integer) - bottom percentile of preliminary calculated z-scores to set minimal outliers
-      winsor_perc_top (integer) - top percentile of preliminary calculated z-scores to set maximal outliers      
+      winsor_bottom (integer) - bottom boundary of preliminary calculated z-scores to set minimal outliers
+      winsor_top (integer) - top boundary of preliminary calculated z-scores to set maximal outliers      
       fill_option (string) - winorized z vector filling defining rule:
              'standard' - only diagonal values of z matrix             
              'backfill' - diagonal values of z matrix added with values of first not NaN column of z matrix
@@ -240,7 +240,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     date_format = '%Y-%m-%d'
     df_z_score_res = pd.DataFrame()
     df_z_score_res.index.name = ser_to_manage.name
-    df_z_matrix = pd.DataFrame(np.NaN, index = ser_to_manage.index, columns = ser_to_manage.index)
+    df_z_matrix = pd.DataFrame(np.NaN, index = ser_to_manage.index.copy(), columns = ser_to_manage.index.copy())
     df_z_matrix.index.name = ser_to_manage.name
     
     # Calculating rolling mean
