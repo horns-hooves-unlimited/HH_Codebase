@@ -249,7 +249,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     ser_rolling_std = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).std()
     # Calculating rolling z-score
     ser_rolling_z_score = (ser_to_manage - ser_rolling_mean) / ser_rolling_std
-    print('hh_rolling_z_score: Mean, Std and Z Score series calculated succesfully')
+    print('hh_rolling_z_score: Mean, Std and Z Score series calculated successfully')
 
     #Calculating z-score matrix
     for end_wnd_index in range(min_wnd, ser_to_manage.size + 1):        
@@ -285,7 +285,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
             # Filling z matrix column part after the winsorizing (if needed)
             df_z_matrix.iloc[start_wnd_index : end_wnd_index, end_wnd_index - 1] = ser_z_scores.values
     
-    print('hh_rolling_z_score: Z Matrix values calculated succesfully')
+    print('hh_rolling_z_score: Z Matrix values calculated successfully')
     
     # Getting winsorized z meanings       
     ser_z_winsorized = pd.Series(np.copy(np.diag(df_z_matrix)), index = ser_to_manage.index)
@@ -293,7 +293,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     if (fill_option == 'backfill'):
         ind_valid_index = ser_z_winsorized.index.get_loc(ser_z_winsorized.first_valid_index())
         ser_z_winsorized[ : ind_valid_index] = df_z_matrix.iloc[ : ind_valid_index, ind_valid_index]
-    print('hh_rolling_z_score: Rolling winsorized Z Score series calculated succesfully')
+    print('hh_rolling_z_score: Rolling winsorized Z Score series calculated successfully')
     
     df_z_score_res['Mean'] = ser_rolling_mean
     df_z_score_res['Std'] = ser_rolling_std    

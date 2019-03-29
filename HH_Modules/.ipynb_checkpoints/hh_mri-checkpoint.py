@@ -95,7 +95,7 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
     
     # Filling missing data with previous filled values for all columns of data table
     df_selected_data = hh_missing_data_manager(df_selected_data, manage_option = 'previous')
-    df_selected_data.index.name = 'MRI Dataset'
+    df_selected_data.index.name = 'Date'
     print('hh_build_mri_from_model: Missed data in limited data table filled successfully')
 
     
@@ -103,7 +103,7 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
 
 def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI_min_wnd, MRI_max_wnd, MRI_winsor_bottom, MRI_winsor_top):
     """
-    Version 0.02 2019-03-26
+    Version 0.04 2019-03-29
     
     FUNCTIONALITY: TO FILL!!!
       1) Selecting base element for each asset group and rearranging dataset for base elements priority
@@ -155,37 +155,69 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
             df_model_asset = df_model_asset.reindex(base_oriented_index)
             df_model_asset.reset_index(drop = True, inplace = True)
             
-    # Starting main standartizing cycle within the groups   
+    # Standartizing cycle on group level
+    # Initialising loop visibility variables            
+    arr_group_container = []
+    arr_group_codes = []
     for asset_group_name, df_asset_group in df_model_asset.groupby('Asset Group'):
-        # Initialising cycle visibility variables        
+        # Initialising geoup visibility variables        
         print('hh_standartize_mri_data: group', asset_group_name, 'started standartizing')
         bool_base_asset = True
-        
-        for asset_code in df_asset_group['Asset Code']:
-            # Normalization of base asset data set
+        arr_asset_container = []
+        arr_asset_codes = []
+        # Standartizing cycle on asset level with the group
+        for (asset_index, asset_code) in df_asset_group['Asset Code'].iteritems():
+            # Assignment of base asset data set
             print('hh_standartize_mri_data: asset', asset_code, 'in group', asset_group_name, 'started standartizing')
             if (bool_base_asset):
                 bool_base_asset = False
+                # Performing z scoring for base asset
                 [df_base_z_score, df_base_z_matrix] = hh_rolling_z_score(np.log(df_source[asset_code]), min_wnd = MRI_min_wnd, max_wnd = MRI_max_wnd, winsor_option = 'value', 
                                                                          winsor_bottom = MRI_winsor_bottom, winsor_top = MRI_winsor_top, fill_option = 'backfill')
                 ser_base_z_score_winsor = df_base_z_score['Z Winsorized']
+                # Calculating etalon filled quantity
                 int_base_filled = ser_base_z_score_winsor[ser_base_z_score_winsor.index < date_to_start].notna().sum()
-                df_base_z_score['Z Standarized'] = pd.Series(np.copy(np.diag(df_base_z_matrix)), index = df_base_z_matrix.index)
+                # Defining of standartized values of base asset as diagonal of z matrix (without backfilling)
+                df_base_z_score['Z Standarized'] = pd.Series(np.copy(np.diag(df_base_z_matrix)), index = df_base_z_matrix.index)  
+                # Initialising dataset with non np.NaN wages sum for group
+                df_group_weights = pd.DataFrame(np.zeros(df_base_z_matrix.shape), index = df_base_z_matrix.index, columns = df_base_z_matrix.columns)
+                # Creating a whole group dataset with multiplying asset matrix to asset weight
+                arr_asset_container.append(df_base_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])    
+                df_group_weights = df_group_weights + df_base_z_matrix.notna() * df_model_asset.at[asset_index, 'Factor Weights']               
+                arr_asset_codes.append(asset_code)
             # Normalization of other asset's data sets                
             else:
+                # Performing z scoring for asset                
                 [df_asset_z_score, df_asset_z_matrix] = hh_rolling_z_score(np.log(df_source[asset_code]), min_wnd = MRI_min_wnd, max_wnd = MRI_max_wnd, winsor_option = 'value', 
                                                                            winsor_bottom = MRI_winsor_bottom, winsor_top = MRI_winsor_top, fill_option = 'backfill')
                 ser_asset_z_score_simple = df_asset_z_score['Z Score']
                 ser_asset_z_score_winsor = df_asset_z_score['Z Winsorized']               
+                # Calculating asset filled quantity                
                 int_asset_filled = ser_asset_z_score_winsor[ser_asset_z_score_winsor.index < date_to_start].notna().sum()
-                # Standartizing other asset if they do not have enough initial values
+                # Standartizing asset if they do not have enough initial values
                 if (int_asset_filled < int_base_filled * double_base_allowed_part):
                     df_asset_start_index = ser_asset_z_score_simple.index.get_loc(ser_asset_z_score_simple.first_valid_index())                 
+                    # Renormatizing asset z matrix with base z matrix data
                     for end_wnd_index in range(df_asset_start_index, min(df_asset_start_index + MRI_max_wnd, ser_asset_z_score_simple.size)):
                         ser_base_z_matrix_part = df_base_z_matrix.iloc[max(0, df_asset_start_index - MRI_min_wnd + 1) : end_wnd_index + 1, end_wnd_index]
                         df_asset_z_matrix.iloc[:, end_wnd_index] = df_asset_z_matrix.iloc[:, end_wnd_index] * ser_base_z_matrix_part.std()  + ser_base_z_matrix_part.mean()
-                   
+                        
+                # Defining of standartized values of asset as diagonal of modified z matrix (without backfilling)
                 df_asset_z_score['Z Standarized'] = pd.Series(np.copy(np.diag(df_asset_z_matrix)), index = df_asset_z_matrix.index)
+                # Adding asset matrix to a whole group dataset with multiplying asset matrix to asset weight          
+                arr_asset_container.append(df_asset_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])  
+                df_group_weights = df_group_weights + df_asset_z_matrix.notna() * df_model_asset.at[asset_index, 'Factor Weights']                    
+                arr_asset_codes.append(asset_code)                
+            print('hh_standartize_mri_data: asset', asset_code, 'in group', asset_group_name, 'standartized successfully') 
+#            if (asset_code == 'iv_us'): # TEMP for testing purposes
+#                break
+        
+        df_group_mean = pd.concat(arr_asset_container, axis = 0, keys = arr_asset_codes, names = ['Asset Code', 'Date'], copy = False)   
+        df_group_mean = df_group_mean.sum(level = 1)
+        df_group_mean[df_group_weights > 0] =  df_group_mean[df_group_weights > 0] / df_group_weights[df_group_weights > 0]
+        df_group_mean[df_group_weights == 0] = np.NaN
+        
+        if (asset_group_name == 'EQ'): # TEMP for testing purposes
+            break
                 
-    
-    return df_model_asset # Temporary return for non-base series
+    return df_group_mean  # Temporary return
