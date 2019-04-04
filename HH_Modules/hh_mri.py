@@ -21,8 +21,7 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
       hdf_object_key (string) - data object key to access converted data from HDF5 file
       date_index (pd.DatetimeIndex) - dates list to take from source file
       update_hdf (boolean) - decision flag if to update data keeping file from the source file or to use existing data keeping file (default - True)
-    """
-    
+    """    
     import numpy as np
     import pandas as pd
     
@@ -101,20 +100,25 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
     
     return [df_model_asset, df_model_MRI, df_selected_data]
 
-def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI_min_wnd, MRI_max_wnd, MRI_winsor_bottom, MRI_winsor_top):
+
+def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI_min_wnd, MRI_max_wnd, MRI_winsor_bottom, MRI_winsor_top, hdf_file_path):
     """
-    Version 0.04 2019-03-29
+    Version 0.12 2019-04-03
     
-    FUNCTIONALITY: TO FILL!!!
-      1) Selecting base element for each asset group and rearranging dataset for base elements priority
-#      2) Extracting asset and MRI descriptions from model information
-#      3) Creating/updating HDF5 file with structured source data (if needed)
-#      4) Taking structured data for selected date interval from HDF5 file
-#      5) Filling missed data by unlimited forward filling
-    OUTPUT: TO FILL!!!
-#      df_model_asset (pd.DataFrame) - asset list and weights descripted at model tab
-#      df_model_MRI (pd.DataFrame) - market risk indexes list and weights descripted at model tab 
-#      df_selected_data (pd.DataFrame) - result of data import from source file and next transormations
+    FUNCTIONALITY:
+      1) Selecting base asset for each asset group and rearranging dataset for base elements priority    
+      2) Performing winsorized z-scoring for each asset of each group
+      3) For non-base assets: standartizing z-matrix for assets, which have are too many missed values before date_to_start
+      4) Forming standartized data vector for each asset from standartized z-matrix or base z-matrix
+      5) For all assets: adding weighted z-matrix to group level collection
+      6) Calculating group mean matrix for weighted z-matrices in group level collection
+      7) Building group z-matrix from group mean matrix
+      8) Saving group z-matrix to HDF5 file with reseted index because of HDF5 limitations (index is in 0 column) for further calculations
+      9) Calculating percentile data vector for each group z-matrix
+    OUTPUT:
+      df_asset_standartized (pd.DataFrame) - collection of standartized z-scores (pd.Timeseries) for all assets
+      df_group_mean_z_diag (pd.DataFrame) - collection of diagonales of group's z matrices for all groups    
+      df_group_percentiled (pd.DataFrame) - collection of percentiled group's z matrices (pd.Timeseries) for all groups 
     INPUT:
       df_model_asset (pd.DataFrame) - asset list and weights descripted at model
       df_selected_data (pd.DataFrame) - main work dataset - result of data import from source file and next transormations
@@ -123,13 +127,16 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
       MRI_max_wnd (integer) - maximal rolling window width for normalizing function    
       MRI_winsor_bottom (integer) - bottom winsorization boundary for normalizing function
       MRI_winsor_top (integer) - top winsorization boundary for normalizing function
+      hdf_file_path (string) - path to save HDF5 file with z matrices for each group      
     """
     
     import numpy as np
     import pandas as pd
+    from datetime import datetime
     from HH_Modules.hh_ts import hh_rolling_z_score
 
     # Initialising function visibility variables
+    date_format = '%Y-%m-%d'        
     df_source = df_selected_data.copy()
     double_base_allowed_part = 2/3
     
@@ -144,31 +151,37 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                 # First group element's attributes fixation
                 first_asset_number = df_model_asset.index.get_loc(asset_index)
                 bool_first_asset_in_group = False
-            if (df_source.loc[df_source.index < date_to_start][asset_code].notna().sum() > int_base_counter):
+#            if (df_source.loc[df_source.index < date_to_start][asset_code].notna().sum() > int_base_counter):
+            if (df_source[ : date_to_start][asset_code].notna().sum() > int_base_counter):                
                 # Determination of base element for group and it's attributes fixation
-                int_base_counter = df_source.loc[df_source.index < date_to_start][asset_code].notna().sum()
+#                int_base_counter = df_source.loc[df_source.index < date_to_start][asset_code].notna().sum()
+                int_base_counter = df_source[ : date_to_start][asset_code].notna().sum()                
                 base_asset_number = df_model_asset.index.get_loc(asset_index)
+                base_asset_code = asset_code
         # Changing assets order within the group for base element priority
         if (first_asset_number != base_asset_number):
             base_oriented_index = df_model_asset.index.tolist()
             base_oriented_index[first_asset_number], base_oriented_index[base_asset_number] = base_oriented_index[base_asset_number], base_oriented_index[first_asset_number]
             df_model_asset = df_model_asset.reindex(base_oriented_index)
             df_model_asset.reset_index(drop = True, inplace = True)
-            
+        print('hh_standartize_mri_data: basic asset for group', asset_group_name, 'determined succesfully:', base_asset_code)
+        
     # Standartizing cycle on group level
     # Initialising loop visibility variables            
-    arr_group_container = []
+    arr_group_diag_container = []
+    arr_group_vector_container = []
+    arr_asset_vector_container = []
+    arr_asset_codes_global = []
     arr_group_codes = []
     for asset_group_name, df_asset_group in df_model_asset.groupby('Asset Group'):
         # Initialising geoup visibility variables        
-        print('hh_standartize_mri_data: group', asset_group_name, 'started standartizing')
+        print('hh_standartize_mri_data: group', asset_group_name, 'standartizing started')
         bool_base_asset = True
-        arr_asset_container = []
+        arr_asset_matrix_container = []
         arr_asset_codes = []
         # Standartizing cycle on asset level with the group
         for (asset_index, asset_code) in df_asset_group['Asset Code'].iteritems():
             # Assignment of base asset data set
-            print('hh_standartize_mri_data: asset', asset_code, 'in group', asset_group_name, 'started standartizing')
             if (bool_base_asset):
                 bool_base_asset = False
                 # Performing z scoring for base asset
@@ -176,15 +189,16 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                                                                          winsor_bottom = MRI_winsor_bottom, winsor_top = MRI_winsor_top, fill_option = 'backfill')
                 ser_base_z_score_winsor = df_base_z_score['Z Winsorized']
                 # Calculating etalon filled quantity
-                int_base_filled = ser_base_z_score_winsor[ser_base_z_score_winsor.index < date_to_start].notna().sum()
+                int_base_filled = ser_base_z_score_winsor[ : date_to_start].notna().sum()                
                 # Defining of standartized values of base asset as diagonal of z matrix (without backfilling)
-                df_base_z_score['Z Standarized'] = pd.Series(np.copy(np.diag(df_base_z_matrix)), index = df_base_z_matrix.index)  
+                arr_asset_vector_container.append(pd.Series(np.copy(np.diag(df_base_z_matrix)), index = df_base_z_matrix.index))
                 # Initialising dataset with non np.NaN wages sum for group
                 df_group_weights = pd.DataFrame(np.zeros(df_base_z_matrix.shape), index = df_base_z_matrix.index, columns = df_base_z_matrix.columns)
                 # Creating a whole group dataset with multiplying asset matrix to asset weight
-                arr_asset_container.append(df_base_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])    
+                arr_asset_matrix_container.append(df_base_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])    
                 df_group_weights = df_group_weights + df_base_z_matrix.notna() * df_model_asset.at[asset_index, 'Factor Weights']               
                 arr_asset_codes.append(asset_code)
+                arr_asset_codes_global.append(asset_code)
             # Normalization of other asset's data sets                
             else:
                 # Performing z scoring for asset                
@@ -193,7 +207,7 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                 ser_asset_z_score_simple = df_asset_z_score['Z Score']
                 ser_asset_z_score_winsor = df_asset_z_score['Z Winsorized']               
                 # Calculating asset filled quantity                
-                int_asset_filled = ser_asset_z_score_winsor[ser_asset_z_score_winsor.index < date_to_start].notna().sum()
+                int_asset_filled = ser_asset_z_score_winsor[ : date_to_start].notna().sum()                
                 # Standartizing asset if they do not have enough initial values
                 if (int_asset_filled < int_base_filled * double_base_allowed_part):
                     df_asset_start_index = ser_asset_z_score_simple.index.get_loc(ser_asset_z_score_simple.first_valid_index())                 
@@ -203,21 +217,138 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                         df_asset_z_matrix.iloc[:, end_wnd_index] = df_asset_z_matrix.iloc[:, end_wnd_index] * ser_base_z_matrix_part.std()  + ser_base_z_matrix_part.mean()
                         
                 # Defining of standartized values of asset as diagonal of modified z matrix (without backfilling)
-                df_asset_z_score['Z Standarized'] = pd.Series(np.copy(np.diag(df_asset_z_matrix)), index = df_asset_z_matrix.index)
+                arr_asset_vector_container.append(pd.Series(np.copy(np.diag(df_asset_z_matrix)), index = df_asset_z_matrix.index))            
                 # Adding asset matrix to a whole group dataset with multiplying asset matrix to asset weight          
-                arr_asset_container.append(df_asset_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])  
+                arr_asset_matrix_container.append(df_asset_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])  
                 df_group_weights = df_group_weights + df_asset_z_matrix.notna() * df_model_asset.at[asset_index, 'Factor Weights']                    
-                arr_asset_codes.append(asset_code)                
+                arr_asset_codes.append(asset_code)   
+                arr_asset_codes_global.append(asset_code)                
             print('hh_standartize_mri_data: asset', asset_code, 'in group', asset_group_name, 'standartized successfully') 
-#            if (asset_code == 'iv_us'): # TEMP for testing purposes
-#                break
         
-        df_group_mean = pd.concat(arr_asset_container, axis = 0, keys = arr_asset_codes, names = ['Asset Code', 'Date'], copy = False)   
+        # Calculating z matrix for group from weighted asset matrices
+        df_group_mean = pd.concat(arr_asset_matrix_container, axis = 0, keys = arr_asset_codes, names = ['Asset Code', 'Date'], copy = False)   
         df_group_mean = df_group_mean.sum(level = 1)
         df_group_mean[df_group_weights > 0] =  df_group_mean[df_group_weights > 0] / df_group_weights[df_group_weights > 0]
         df_group_mean[df_group_weights == 0] = np.NaN
-        
-        if (asset_group_name == 'EQ'): # TEMP for testing purposes
-            break
+        print('hh_standartize_mri_data: weighted mean matrix for group' , asset_group_name, 'builded successfully')         
+        df_group_mean_z = (df_group_mean - df_group_mean.mean())/df_group_mean.std()
+        # Adding diagonale of group weighted mean z-score matrix to MRI dataset
+        arr_group_diag_container.append(pd.Series(np.copy(np.diag(df_group_mean_z)), index = df_group_mean_z.index))
+        print('hh_standartize_mri_data: z-score matrix for group' , asset_group_name, 'weighted mean matrix builded successfully') 
+        # Saving group matrix to hdf file for further manipulations
+        df_group_to_save = df_group_mean_z.copy()
+        df_group_to_save = df_group_to_save.astype(float)
+        df_group_to_save.reset_index(inplace = True)
+        df_group_to_save.columns = np.arange(len(df_group_to_save.columns))
+        df_group_to_save.to_hdf(hdf_file_path, key = asset_group_name, mode = 'a', format = 'fixed') 
+        print('hh_standartize_mri_data: z-score matrix for group' , asset_group_name, 'saved to HDF5 file', hdf_file_path, '(object key:', asset_group_name, ')') 
                 
-    return df_group_mean  # Temporary return
+        arr_group_codes.append(asset_group_name)
+        # Creating data vector of percentiled group's z matrix columns for each group
+        ser_group_z_percentile = pd.Series(np.NaN, index = df_group_mean_z.index) 
+        ser_group_z_percentile.name = asset_group_name
+        for column_index in df_group_mean_z.columns:
+            if (column_index >= datetime.strptime(date_to_start, date_format)):
+                ser_rolling_wnd = df_group_mean_z.loc[(column_index - pd.DateOffset(years = 1) + pd.DateOffset(days = 1)) : column_index, column_index]
+                ser_group_z_percentile[column_index] = ((ser_rolling_wnd.rank(method = 'min')[-1] - 1) / ser_rolling_wnd.notna().sum() + 
+                        ser_rolling_wnd.rank(pct = True, method = 'max')[-1]) / 2                    
+        arr_group_vector_container.append(ser_group_z_percentile)
+        print('hh_standartize_mri_data: percentiled data vector on base of mean z score matrix for group' , asset_group_name, 'builded successfully')                 
+
+    # Collection of standartized z-scores for all assets
+    df_asset_standartized = pd.concat(arr_asset_vector_container, axis = 0, keys = arr_asset_codes_global, names = ['Asset Code', 'Date'], copy = False)
+    print('hh_standartize_mri_data: asset standartized z-score collection builded successfully')
+    # Collection of diagonales of group's z matrices for all groups
+    df_group_mean_z_diag = pd.concat(arr_group_diag_container, axis = 0, keys = arr_group_codes, names = ['Group Name', 'Date'], copy = False)
+    print('hh_standartize_mri_data: data vector collection of diagonales of mean z score matrix for all groups builded successfully')       
+    # Collection of percentiled group's z matrices for all groups
+    df_group_percentiled = pd.concat(arr_group_vector_container, axis = 0, keys = arr_group_codes, names = ['Group Name', 'Date'], copy = False)
+    print('hh_standartize_mri_data: percentiled data vector collection on base of mean z score matrix for all groups builded successfully')         
+    
+    return [df_asset_standartized, df_group_mean_z_diag, df_group_percentiled]
+
+
+def hh_aggregate_mri_data(df_model_MRI, hdf_z_matrix_path, hdf_group_info_path, object_perc_grouped_hdf, ma_max_wnd):
+    """
+    Version 0.01 2019-04-03
+    
+    FUNCTIONALITY:
+      1) For all groups: extcrating from file and adding weighted z-matrix to MRI level collection
+      2) Calculating MRI weighted mean matrix for weighted z-matrices in MRI level collection
+      3) Building MRI z-matrix from MRI mean matrix
+      4) Building MRI percentiled vector as weighted mean of group percentiled vectors
+      9) Calculating moving average vector for MRI percentiled vector
+    OUTPUT:
+      ser_MRI_mean_z_diag (pd.Series) - diagonale of weighted mean z-score matrix builded from z-score group matrices
+      ser_MRI_perc (pd.Series) - weighted mean of percemtiled z-matrices for groups   
+      ser_MRI_perc_MA (pd.Series) - result of moving average for weighted mean of percemtiled z-matrices for groups
+    INPUT:
+      df_model_MRI (pd.DataFrame) - group list and weights descripted at model
+      hdf_z_matrix_path (string) - path to load HDF5 file with z matrices for each group
+      hdf_group_info_path (string) - path to load HDF5 file with percentiled z matrices for each group    
+      object_perc_grouped_hdf (string) - key for pd.DataFrame object with percentiled z matrices in hdf_group_info_path file
+      ma_max_wnd (integer) - maximum windows size for moving aveage calculating from weighted data vector from percentiled group matrices 
+    """
+    
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime
+    from HH_Modules.hh_ts import hh_rolling_simple_MA    
+
+    # Initialising containers for weighted mean matrix calculation
+    arr_matrix_container = []
+    arr_group_codes = []
+    # Group aggregating cycle    
+    for group_index, ser_group_info in df_model_MRI.iterrows():
+        group_code = ser_group_info['Asset Code']
+        group_weight = ser_group_info['Factor Weights']
+        # Loading group z score matrix from HDF5 file
+        df_group_z_matrix = pd.read_hdf(hdf_z_matrix_path, group_code)
+        df_group_z_matrix.set_index(0, drop = True, inplace = True)
+        # Initialising not np.NaN weights sum DataFrame
+        if (group_index == 0):
+            df_group_weights = pd.DataFrame(np.zeros(df_group_z_matrix.shape), index = df_group_z_matrix.index, columns = df_group_z_matrix.columns)
+        # Adding weighted matrix to container
+        arr_matrix_container.append(df_group_z_matrix * group_weight)
+        arr_group_codes.append(group_code)
+        # Adding not np.NaN weights to aggregated DataFrame
+        df_group_weights = df_group_weights + df_group_z_matrix.notna() * group_weight
+        print('hh_aggregate_mri_data: group', group_code, 'z matrix data extracted successfully')
+
+    # Calculating z matrix for MRI from weighted group matrices        
+    df_MRI_mean = pd.concat(arr_matrix_container, axis = 0, keys = arr_group_codes, names = ['Group Code', 'Date'], copy = False) 
+    df_MRI_mean = df_MRI_mean.sum(level = 1)
+    df_group_weights[df_group_weights == 0] = np.NaN
+    df_MRI_mean = df_MRI_mean / df_group_weights
+    print('hh_aggregate_mri_data: weighted mean matrix for MRI builded successfully')    
+    df_MRI_mean_z = (df_MRI_mean - df_MRI_mean.mean())/df_MRI_mean.std()
+    ser_MRI_mean_z_diag = pd.Series(np.copy(np.diag(df_MRI_mean_z)), index = df_MRI_mean_z.index)
+    print('hh_aggregate_mri_data: z-score matrix for MRI weighted mean matrix builded successfully')     
+
+    # Initialising containers for weighted percentiled vector calculation
+    arr_perc_container = []    
+    # Group aggregating cycle    
+    for group_index_perc, ser_group_info_perc in df_model_MRI.iterrows():
+        group_code = ser_group_info_perc['Asset Code']
+        group_weight = ser_group_info_perc['Factor Weights']
+        # Loading group z scored matrix percentalization result from HDF5 file
+        ser_group_perc= pd.read_hdf(hdf_group_info_path, object_perc_grouped_hdf)[group_code]
+        # Initialising not np.NaN weights sum TimeSeries
+        if (group_index_perc == 0):
+            ser_group_weights = pd.Series(np.zeros(len(ser_group_perc)), index = ser_group_perc.index)        
+        # Adding weighted matrix to container
+        arr_perc_container.append(ser_group_perc * group_weight)        
+        # Adding not np.NaN weights to aggregated TimeSeries
+        ser_group_weights = ser_group_weights + ser_group_perc.notna() * group_weight
+        print('hh_aggregate_mri_data: group', group_code, 'percentiled data vector extracted successfully')
+        
+    # Calculating z matrix for MRI from weighted group matrices        
+    ser_MRI_perc = pd.concat(arr_perc_container, axis = 0, keys = arr_group_codes, names = ['Group Code', 'Date'], copy = False)
+    ser_MRI_perc = ser_MRI_perc.sum(level = 1)
+    ser_group_weights[ser_group_weights == 0] = np.NaN
+    ser_MRI_perc = ser_MRI_perc / ser_group_weights   
+    ser_MRI_perc.index = ser_MRI_mean_z_diag.index
+    ser_MRI_perc_MA = hh_rolling_simple_MA(ser_MRI_perc, round(ma_max_wnd / 2), ma_max_wnd, show_report = False)
+    print('hh_aggregate_mri_data: weighted data vector from percentiled group matrices for MRI and moving average for this vector builded successfully')    
+           
+    return [ser_MRI_mean_z_diag, ser_MRI_perc, ser_MRI_perc_MA] # Temporary output for testing purposes

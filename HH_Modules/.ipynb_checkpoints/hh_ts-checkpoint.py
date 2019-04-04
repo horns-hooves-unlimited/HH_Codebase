@@ -44,9 +44,9 @@ def hh_missing_data_manager(df_to_manage, manage_option = 'previous', remove_emp
     return df_managed
 
 
-def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', manage_option = 'mean'):
+def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', manage_option = 'mean', show_report = False):
     """
-    Version 0.03 2019-03-20
+    Version 0.04 2019-04-01
     
     FUNCTIONALITY: 
       Converts data vector to vector of percentile ranks of every element in the part of vector, formed as rolling window that ends with this element
@@ -63,6 +63,9 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
         'less' - comparing particular element to compute part of vector elements in window, that are strictly less than particular element;
         'less_equal' - comparing particular element to compute part of vector elements in window, that are less or equals to particular element;
         'mean' (default) - mean of results of 'less' and 'less_equal' manage_option variants applying;        
+      show_report (boolean) - flag of showing function resulting report: 
+        False (default) - not to show;
+        True - to show;        
     """
 
     import numpy as np
@@ -112,14 +115,15 @@ def hh_rolling_percentile(ser_to_manage, min_wnd, max_wnd, min_interpretation = 
         # Calculating percentiles
         
         ser_ranks = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).apply(rolling_wnd_rank, raw = False)
-        
-    print('hh_rolling_percentile: Percentile rank calculation with min_interpretation', min_interpretation ,'and option', manage_option ,'performed successfully')
+    
+    if (show_report):
+        print('hh_rolling_percentile: Percentile rank calculation with min_interpretation', min_interpretation ,'and option', manage_option ,'performed successfully')
     return ser_ranks
 
 
-def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', factor_period = 'year'):
+def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = 'not_NaN', factor_period = 'year', show_report = False):
     """
-    Version 0.04 2019-03-22
+    Version 0.05 2019-04-01
         
     FUNCTIONALITY: 
       Converts data vector to vector of simple moving average means of every element in the part of vector, 
@@ -137,6 +141,9 @@ def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = '
         'day' = daily; 
         'month' = monthly; 
         'year' (default) = yearly;   
+      show_report (boolean) - flag of showing function resulting report: 
+        False (default) - not to show;
+        True - to show;          
     """
 
     import numpy as np
@@ -174,13 +181,14 @@ def hh_rolling_simple_MA(ser_to_manage, min_wnd, max_wnd, min_interpretation = '
     else: # min_interpretation = 'not_NaN'
         # Calculating moving average
         ser_SMA = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).mean() * annual_factor 
-        
-    print('hh_rolling_simple_MA: Moving average calculation with min_interpretation', min_interpretation ,'performed successfully')
+    
+    if (show_report):
+        print('hh_rolling_simple_MA: Moving average calculation with min_interpretation', min_interpretation ,'performed successfully')
     return ser_SMA
 
-def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent', winsor_bottom = 0, winsor_top = 1, fill_option = 'standard'):
+def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent', winsor_bottom = 0, winsor_top = 1, fill_option = 'standard', show_report = False):
     """
-    Version 0.02 2019-03-20
+    Version 0.03 2019-04-01
     
     FUNCTIONALITY: 
       1) Calculates rolling means, deviations and z scores for source data vector
@@ -206,6 +214,9 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
       fill_option (string) - winorized z vector filling defining rule:
              'standard' - only diagonal values of z matrix             
              'backfill' - diagonal values of z matrix added with values of first not NaN column of z matrix
+      show_report (boolean) - flag of showing function resulting report: 
+        False (default) - not to show;
+        True - to show;               
     """
 
     import numpy as np
@@ -249,7 +260,8 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     ser_rolling_std = ser_to_manage.rolling(window = max_wnd, min_periods = min_wnd, win_type = None).std()
     # Calculating rolling z-score
     ser_rolling_z_score = (ser_to_manage - ser_rolling_mean) / ser_rolling_std
-    print('hh_rolling_z_score: Mean, Std and Z Score series calculated successfully')
+    if (show_report):
+        print('hh_rolling_z_score: Mean, Std and Z Score series calculated successfully')
 
     #Calculating z-score matrix
     for end_wnd_index in range(min_wnd, ser_to_manage.size + 1):        
@@ -284,8 +296,9 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
                         
             # Filling z matrix column part after the winsorizing (if needed)
             df_z_matrix.iloc[start_wnd_index : end_wnd_index, end_wnd_index - 1] = ser_z_scores.values
-    
-    print('hh_rolling_z_score: Z Matrix values calculated successfully')
+
+    if (show_report):
+        print('hh_rolling_z_score: Z Matrix values calculated successfully')
     
     # Getting winsorized z meanings       
     ser_z_winsorized = pd.Series(np.copy(np.diag(df_z_matrix)), index = ser_to_manage.index)
@@ -293,12 +306,14 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     if (fill_option == 'backfill'):
         ind_valid_index = ser_z_winsorized.index.get_loc(ser_z_winsorized.first_valid_index())
         ser_z_winsorized[ : ind_valid_index] = df_z_matrix.iloc[ : ind_valid_index, ind_valid_index]
-    print('hh_rolling_z_score: Rolling winsorized Z Score series calculated successfully')
+    if (show_report):        
+        print('hh_rolling_z_score: Rolling winsorized Z Score series calculated successfully')
     
     df_z_score_res['Mean'] = ser_rolling_mean
     df_z_score_res['Std'] = ser_rolling_std    
     df_z_score_res['Z Score'] = ser_rolling_z_score
     df_z_score_res['Z Winsorized'] = ser_z_winsorized
-  
-    print('hh_rolling_z_score: Calculating Z Score data with winsor_option', winsor_option, 'and fill_option', fill_option, 'performed successfully')
+    
+    if (show_report):    
+        print('hh_rolling_z_score: Calculating Z Score data with winsor_option', winsor_option, 'and fill_option', fill_option, 'performed successfully')
     return [df_z_score_res, df_z_matrix]
