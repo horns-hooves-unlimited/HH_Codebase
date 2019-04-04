@@ -151,10 +151,8 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                 # First group element's attributes fixation
                 first_asset_number = df_model_asset.index.get_loc(asset_index)
                 bool_first_asset_in_group = False
-#            if (df_source.loc[df_source.index < date_to_start][asset_code].notna().sum() > int_base_counter):
             if (df_source[ : date_to_start][asset_code].notna().sum() > int_base_counter):                
                 # Determination of base element for group and it's attributes fixation
-#                int_base_counter = df_source.loc[df_source.index < date_to_start][asset_code].notna().sum()
                 int_base_counter = df_source[ : date_to_start][asset_code].notna().sum()                
                 base_asset_number = df_model_asset.index.get_loc(asset_index)
                 base_asset_code = asset_code
@@ -174,7 +172,7 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
     arr_asset_codes_global = []
     arr_group_codes = []
     for asset_group_name, df_asset_group in df_model_asset.groupby('Asset Group'):
-        # Initialising geoup visibility variables        
+        # Initialising group visibility variables        
         print('hh_standartize_mri_data: group', asset_group_name, 'standartizing started')
         bool_base_asset = True
         arr_asset_matrix_container = []
@@ -280,8 +278,8 @@ def hh_aggregate_mri_data(df_model_MRI, hdf_z_matrix_path, hdf_group_info_path, 
       9) Calculating moving average vector for MRI percentiled vector
     OUTPUT:
       ser_MRI_mean_z_diag (pd.Series) - diagonale of weighted mean z-score matrix builded from z-score group matrices
-      ser_MRI_perc (pd.Series) - weighted mean of percemtiled z-matrices for groups   
-      ser_MRI_perc_MA (pd.Series) - result of moving average for weighted mean of percemtiled z-matrices for groups
+      ser_MRI_perc (pd.Series) - weighted mean of percentiled z-matrices for groups   
+      ser_MRI_perc_MA (pd.Series) - result of moving average for weighted mean of percentiled z-matrices for groups
     INPUT:
       df_model_MRI (pd.DataFrame) - group list and weights descripted at model
       hdf_z_matrix_path (string) - path to load HDF5 file with z matrices for each group
@@ -351,4 +349,114 @@ def hh_aggregate_mri_data(df_model_MRI, hdf_z_matrix_path, hdf_group_info_path, 
     ser_MRI_perc_MA = hh_rolling_simple_MA(ser_MRI_perc, round(ma_max_wnd / 2), ma_max_wnd, show_report = False)
     print('hh_aggregate_mri_data: weighted data vector from percentiled group matrices for MRI and moving average for this vector builded successfully')    
            
-    return [ser_MRI_mean_z_diag, ser_MRI_perc, ser_MRI_perc_MA] # Temporary output for testing purposes
+    return [ser_MRI_mean_z_diag, ser_MRI_perc, ser_MRI_perc_MA]
+
+
+def hh_plot_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_path, MRI_hdf_path, asset_selected_key, asset_z_score_key, group_diag_key, group_perc_key, mri_diag_key, mri_raw_key, mri_ma_key, figure_size, figure_hspace, min_date, max_date):
+    """
+    Version 0.01 2019-04-04
+    
+    FUNCTIONALITY:
+      1) Drawing plot for all groups
+      2) Drawing plot for MRI
+    OUTPUT:
+      dict_fig_MRI (dictionary) - named array, containing group figures and MRI figure
+    INPUT:
+      df_model_asset (pd.DataFrame) - asset list and weights descripted at model    
+      df_model_MRI (pd.DataFrame) - group list and weights descripted at model    
+      asset_hdf_path (string) - path to hdf file with asset level data
+      group_hdf_path (string) - path to hdf file with group level data
+      MRI_hdf_path (string) - path to hdf file with MRI level data     
+      asset_selected_key (string) - object key to selected mungled raw source data
+      asset_z_score_key (string) - object key to standartized winsorized z-scored selected mungled raw source data
+      group_diag_key (string) - object key to diagonales of group z-matrices   
+      group_perc_key (string) - object key to percentiled vectors of group z-matrices
+      mri_diag_key (string) - object key to diagonale of group MRI z-matrix
+      mri_raw_key (string) - object key to percentiled vector of group MRI z-matrix
+      mri_ma_key (string) - object key to moving average of percentiled vector of group MRI z-matrix
+      figure_size (tuple) - figure shapes
+      figure_hspace (float) - height space between plots within the figure
+      min_date (datetime) - start date for plotting
+      max_date (datetime) - end date for plotting    
+    """
+    
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime 
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    
+    # Extracting asset level data
+    df_raw_data = pd.read_hdf(asset_hdf_path, asset_selected_key)
+    df_raw_data.set_index('Date', drop = True, inplace = True)
+    df_standart_data = pd.read_hdf(asset_hdf_path, asset_z_score_key)
+    df_standart_data.set_index('Date', drop = True, inplace = True)
+    # Extracting group level data
+    df_group_diag = pd.read_hdf(group_hdf_path, group_diag_key)
+    df_group_diag.set_index('Date', drop = True, inplace = True)
+    df_group_perc = pd.read_hdf(group_hdf_path, group_perc_key)
+    df_group_perc.set_index('Date', drop = True, inplace = True)
+    # Extracting MRI level data
+    ser_mri_diag = pd.read_hdf(MRI_hdf_path, mri_diag_key)
+    ser_mri_raw_perc = pd.read_hdf(MRI_hdf_path, mri_raw_key)
+    ser_mri_ma_perc = pd.read_hdf(MRI_hdf_path, mri_ma_key)
+
+    dict_fig_MRI = {}
+    # Drawing subplots for each group
+    for group_counter, (asset_group_name, df_asset_group) in enumerate(df_model_asset.groupby('Asset Group')):
+        # Initialising group visibility variables
+        fig_group, axes_group = plt.subplots(3, 1, figsize = figure_size)
+        plt.subplots_adjust(hspace = figure_hspace)
+        for (asset_index, asset_code) in df_asset_group['Asset Code'].iteritems():    
+            # Drawing raw series for current group assets
+            axes_group[0].set_title(asset_group_name + ' / raw series')
+            df_raw_data[asset_code].plot(ax = axes_group[0], label = asset_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')
+            # Drawing z-score series for current group assets
+            axes_group[1].set_title(asset_group_name + ' / standartized winsorized z-scores of series')            
+            df_standart_data[asset_code].plot(ax = axes_group[1], label = asset_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')
+        # Drawing z-score for group weighted mean
+        axes_group[2].set_title(asset_group_name + ' / group weighted mean')         
+        df_group_diag[asset_group_name].plot(ax = axes_group[2], label = asset_group_name, alpha = 1.0, grid = True, rot = 0) 
+        # Configuring plots
+        for ax_group in axes_group:
+            ax_group.legend(loc = 'best')
+            ax_group.xaxis.set_major_locator(mdates.YearLocator())
+            ax_group.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+            ax_group.xaxis.set_minor_locator(mdates.MonthLocator()) 
+            ax_group.set_xlim(min_date, max_date)             
+        # Adding plot to dictionary array        
+        dict_fig_MRI[asset_group_name] = fig_group
+    
+    # Drawing subplots for MRI
+    fig_MRI, axes_MRI = plt.subplots(3, 1, figsize = figure_size)    
+    plt.subplots_adjust(hspace = figure_hspace)    
+    axes_MRI[0].set_title('Separate groups and common MRI z-scores')    
+    axes_MRI[1].set_title('Separate groups and common MRI percentiled values')  
+    axes_MRI[2].set_title('MRI percentiled values: raw and by moving average')     
+    for group_index, ser_group_info in df_model_MRI.iterrows():
+        group_code = ser_group_info['Asset Code']
+        # Drawing z-score series for current group assets
+        df_group_diag[group_code].plot(ax = axes_MRI[0], label = group_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')        
+        # Drawing percentiled series for current group assets        
+        df_group_perc[group_code].plot(ax = axes_MRI[1], label = group_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')
+    # Drawing z-score series for MRI
+    ser_mri_diag.plot(ax = axes_MRI[0], label = 'MRI', alpha = 1.0, grid = True, rot = 0)    
+    # Drawing percentiled series for MRI
+    ser_mri_raw_perc.plot(ax = axes_MRI[1], label = 'MRI', alpha = 1.0, grid = True, rot = 0)    
+    # Drawing percentiled series for MRI
+    ser_mri_raw_perc.plot(ax = axes_MRI[2], label = 'Raw', alpha = 1.0, grid = True)
+    ser_mri_ma_perc.plot(ax = axes_MRI[2], label = 'Moving average', alpha = 1.0, grid = True, rot = 0)
+    # Configuring plots    
+    axes_MRI[0].legend(loc = 'best')    
+    axes_MRI[1].legend(loc = 'best')        
+    axes_MRI[2].legend(loc = 'best')  
+    for ax_MRI in axes_MRI:
+        ax_MRI.legend(loc = 'best')
+        ax_MRI.xaxis.set_major_locator(mdates.YearLocator())
+        ax_MRI.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+        ax_MRI.xaxis.set_minor_locator(mdates.MonthLocator()) 
+        ax_MRI.set_xlim(min_date, max_date)
+    # Adding plot to dictionary array    
+    dict_fig_MRI['MRI'] = fig_MRI
+        
+    return dict_fig_MRI
