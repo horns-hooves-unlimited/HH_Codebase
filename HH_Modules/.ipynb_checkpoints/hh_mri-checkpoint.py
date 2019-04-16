@@ -34,7 +34,7 @@ def hh_build_mri_from_model(source_file_path, source_model_sheet, hdf_file_path,
     from HH_Modules.hh_ts import hh_missing_data_manager
     
     # Reading Model information from Source model sheet
-    df_model_raw = pd.read_excel(source_file_path, sheet_name = source_model_sheet, header = 1, usecols = 6)
+    df_model_raw = pd.read_excel(source_file_path, sheet_name = source_model_sheet, header = 1, usecols = [0, 1, 2, 3, 4, 5, 6])
     print('hh_build_mri_from_model: Model profile successfully read')
        
     # Filling empty factor weights with zeros
@@ -352,9 +352,9 @@ def hh_aggregate_mri_data(df_model_MRI, hdf_z_matrix_path, hdf_group_info_path, 
     return [ser_MRI_mean_z_diag, ser_MRI_perc, ser_MRI_perc_MA]
 
 
-def hh_plot_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_path, MRI_hdf_path, asset_selected_key, asset_z_score_key, group_diag_key, group_perc_key, mri_diag_key, mri_raw_key, mri_ma_key, figure_size, figure_hspace, min_date, max_date):
+def hh_matplotlib_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_path, MRI_hdf_path, asset_selected_key, asset_z_score_key, group_diag_key, group_perc_key, mri_diag_key, mri_raw_key, mri_ma_key, figure_size, figure_hspace, min_date, max_date):
     """
-    Version 0.01 2019-04-04
+    Version 0.02 2019-04-15
     
     FUNCTIONALITY:
       1) Drawing plot for all groups
@@ -407,15 +407,15 @@ def hh_plot_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pat
         # Initialising group visibility variables
         fig_group, axes_group = plt.subplots(3, 1, figsize = figure_size)
         plt.subplots_adjust(hspace = figure_hspace)
+        axes_group[0].set_title(asset_group_name + ' / raw series')
+        axes_group[1].set_title(asset_group_name + ' / standartized winsorized z-scores of series')  
+        axes_group[2].set_title(asset_group_name + ' / group weighted mean')        
         for (asset_index, asset_code) in df_asset_group['Asset Code'].iteritems():    
-            # Drawing raw series for current group assets
-            axes_group[0].set_title(asset_group_name + ' / raw series')
+            # Drawing raw series for current group assets            
             df_raw_data[asset_code].plot(ax = axes_group[0], label = asset_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')
-            # Drawing z-score series for current group assets
-            axes_group[1].set_title(asset_group_name + ' / standartized winsorized z-scores of series')            
+            # Drawing z-score series for current group assets                       
             df_standart_data[asset_code].plot(ax = axes_group[1], label = asset_code, alpha = 0.75, grid = True, rot = 0, linestyle = ':')
-        # Drawing z-score for group weighted mean
-        axes_group[2].set_title(asset_group_name + ' / group weighted mean')         
+        # Drawing z-score for group weighted mean        
         df_group_diag[asset_group_name].plot(ax = axes_group[2], label = asset_group_name, alpha = 1.0, grid = True, rot = 0) 
         # Configuring plots
         for ax_group in axes_group:
@@ -460,3 +460,175 @@ def hh_plot_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pat
     dict_fig_MRI['MRI'] = fig_MRI
         
     return dict_fig_MRI
+
+
+def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_path, MRI_hdf_path, asset_selected_key, asset_z_score_key, group_diag_key, group_perc_key, mri_diag_key, mri_raw_key, mri_ma_key, figure_size, bokeh_toolbar, min_date, max_date, df_risk_band):
+    """
+    Version 0.03 2019-04-16
+    
+    FUNCTIONALITY:
+      1) Drawing plot for all groups
+      2) Drawing plot for MRI
+    OUTPUT:
+      arr_figures (array) - array of group figures and MRI figure
+    INPUT:
+      df_model_asset (pd.DataFrame) - asset list and weights descripted at model    
+      df_model_MRI (pd.DataFrame) - group list and weights descripted at model    
+      asset_hdf_path (string) - path to hdf file with asset level data
+      group_hdf_path (string) - path to hdf file with group level data
+      MRI_hdf_path (string) - path to hdf file with MRI level data     
+      asset_selected_key (string) - object key to selected mungled raw source data
+      asset_z_score_key (string) - object key to standartized winsorized z-scored selected mungled raw source data
+      group_diag_key (string) - object key to diagonales of group z-matrices   
+      group_perc_key (string) - object key to percentiled vectors of group z-matrices
+      mri_diag_key (string) - object key to diagonale of group MRI z-matrix
+      mri_raw_key (string) - object key to percentiled vector of group MRI z-matrix
+      mri_ma_key (string) - object key to moving average of percentiled vector of group MRI z-matrix
+      figure_size (tuple) - figure shapes
+      bokeh_toolbar (string) - enumeration of tools for figures
+      min_date (datetime) - start date for plotting
+      max_date (datetime) - end date for plotting    
+      df_risk_band (pd.DataFrame) - list of events to draw bands at plots       
+    """
+    
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime 
+    from bokeh.layouts import column as b_col
+    import bokeh.models as b_md    
+    from bokeh.palettes import Set2, Set3
+    import bokeh.plotting as b_pl
+    
+    # Defining output to notebook
+    b_pl.output_notebook()
+    
+    # Extracting asset level data
+    df_raw_data = pd.read_hdf(asset_hdf_path, asset_selected_key)
+    df_raw_data.set_index('Date', drop = True, inplace = True)
+    df_standart_data = pd.read_hdf(asset_hdf_path, asset_z_score_key)
+    df_standart_data.set_index('Date', drop = True, inplace = True)
+    # Extracting group level data
+    df_group_diag = pd.read_hdf(group_hdf_path, group_diag_key)
+    df_group_diag.set_index('Date', drop = True, inplace = True)
+    df_group_perc = pd.read_hdf(group_hdf_path, group_perc_key)
+    df_group_perc.set_index('Date', drop = True, inplace = True)
+    # Extracting MRI level data
+    ser_mri_diag = pd.read_hdf(MRI_hdf_path, mri_diag_key)
+    ser_mri_raw_perc = pd.read_hdf(MRI_hdf_path, mri_raw_key)
+    ser_mri_ma_perc = pd.read_hdf(MRI_hdf_path, mri_ma_key)
+
+    # Initialising of resulting array
+    arr_figures = []
+    # Initialising of x-axis array for all plots
+    arr_index_values = df_raw_data.index.values
+
+    # Drawing plots for asset groups
+    for group_counter, (asset_group_name, df_asset_group) in enumerate(df_model_asset.groupby('Asset Group')):
+        # Defining color palette for each group
+        num_asset_lines = len(df_asset_group['Asset Code'])
+        palette_asset_lines = Set2[8][ : num_asset_lines]
+        # Initialising raw asset plot for group
+        fig_group_raw = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime', 
+                                    title = asset_group_name + ' / raw series', x_range = (min_date, max_date))
+        # Initialising z-score asset plot for group        
+        fig_group_z_score = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime',
+                                        title = asset_group_name + ' / standartized winsorized z-scores of series', x_range = fig_group_raw.x_range)        
+        # Drawing asset lines for asset plots
+        for asset_counter, asset_code in enumerate(df_asset_group['Asset Code']):
+            fig_group_raw.line(x = arr_index_values, y = df_raw_data[asset_code].values,
+                               line_color = palette_asset_lines[asset_counter], line_width = 1, legend = asset_code, name = str(asset_counter))   
+            fig_group_z_score.line(x = arr_index_values, y = df_standart_data[asset_code].values,
+                               line_color = palette_asset_lines[asset_counter], line_width = 1, legend = asset_code, name = str(asset_counter)) 
+        # Initialising and drawing consolidated line for group z-score
+        fig_group_mean = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime',
+                                     title = asset_group_name + ' / group weighted mean', x_range = fig_group_raw.x_range)
+        fig_group_mean.line(x = arr_index_values, y = df_group_diag[asset_group_name].values, legend = asset_group_name)
+
+        # Tuning plots and adding risk event bands
+        fig_group_raw.legend.location = 'top_left'
+        fig_group_raw.legend.background_fill_alpha  = 0.75
+        fig_group_raw.legend.spacing  = 0        
+        fig_group_raw.xaxis.axis_label_standoff = 0
+        fig_group_raw.title.align = 'center'   
+        fig_group_raw.min_border_bottom = 50
+        for event_counter, ser_event in df_risk_band.iterrows():
+            fig_group_raw.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))
+        fig_group_raw.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))            
+        fig_group_z_score.legend.location = 'top_left'                
+        fig_group_z_score.legend.background_fill_alpha  = 0.75        
+        fig_group_z_score.legend.spacing  = 0   
+        fig_group_z_score.xaxis.axis_label_standoff = 0        
+        fig_group_z_score.title.align = 'center'    
+        fig_group_z_score.min_border_bottom = 50
+        for event_counter, ser_event in df_risk_band.iterrows():
+            fig_group_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))        
+        fig_group_z_score.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))             
+        fig_group_mean.legend.location = 'top_left'
+        fig_group_mean.legend.background_fill_alpha  = 0.75  
+        fig_group_mean.legend.spacing  = 0        
+        fig_group_mean.xaxis.axis_label_standoff = 0
+        fig_group_mean.title.align = 'center'
+        fig_group_mean.min_border_bottom = 50        
+        for event_counter, ser_event in df_risk_band.iterrows():
+            fig_group_mean.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))
+        fig_group_mean.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline'))
+        # Consloidating plots for asset group and adding layout to resulting plot
+        arr_figures.append(b_col(fig_group_raw, fig_group_z_score, fig_group_mean))
+
+    # Defining color palette for MRI
+    num_group_lines = len(df_model_MRI['Asset Code'])
+    palette_group_lines = Set2[8][ : num_group_lines]  
+    # Initialising z-score and percentiled values plots for MRI
+    fig_MRI_z_score = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime',
+                                  title = 'Separate groups and common MRI z-scores', x_range = (min_date, max_date))  
+    fig_MRI_perc = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime',
+                               title = 'Separate groups and common MRI percentiled values', x_range = fig_MRI_z_score.x_range)  
+    # Drawing lines for groups
+    for group_counter, group_code in enumerate(df_model_MRI['Asset Code']):
+            fig_MRI_z_score.line(x = arr_index_values, y = df_group_diag[group_code].values, 
+                                 line_color = palette_group_lines[group_counter], line_width = 1, legend = group_code) 
+            fig_MRI_perc.line(x = arr_index_values, y = df_group_perc[group_code].values,
+                              line_color = palette_group_lines[group_counter], line_width = 1, legend = group_code, name = str(group_counter))             
+    # Drawing line for MRI
+    fig_MRI_z_score.line(x = arr_index_values, y = ser_mri_diag.values, legend = 'MRI z score', line_width = 2, name = '0')
+    # Drawing line for MRI percentiled
+    fig_MRI_perc.line(x = arr_index_values, y = ser_mri_raw_perc.values, legend = 'MRI percentile', color = 'blue')    
+    # Initialising plot for MRI percentiled
+    fig_MRI_res = b_pl.figure(tools = bokeh_toolbar, x_axis_label = 'Date', plot_width = figure_size[0], plot_height = figure_size[1], x_axis_type = 'datetime',
+                              title = 'MRI percentiled values: raw and by moving average', x_range = fig_MRI_z_score.x_range)      
+    # Drawing lines for MRI percentiled (raw and moving average)
+    fig_MRI_res.line(x = arr_index_values, y = ser_mri_raw_perc.values, legend = 'Raw', color = 'blue', name = '0')   
+    fig_MRI_res.line(x = arr_index_values, y = ser_mri_ma_perc.values, legend = 'MA-5', color = 'orange') 
+    # Tuning plots and adding risk event bands
+    fig_MRI_z_score.legend.location = 'top_left'
+    fig_MRI_z_score.legend.background_fill_alpha  = 0.75    
+    fig_MRI_z_score.legend.spacing  = 0        
+    fig_MRI_z_score.xaxis.axis_label_standoff = 0
+    fig_MRI_z_score.title.align = 'center'  
+    fig_MRI_z_score.min_border_bottom = 50 
+    for event_counter, ser_event in df_risk_band.iterrows():
+        fig_MRI_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))    
+    fig_MRI_z_score.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))          
+    fig_MRI_perc.legend.location = 'top_left'
+    fig_MRI_perc.legend.background_fill_alpha  = 0.75
+    fig_MRI_perc.legend.spacing  = 0        
+    fig_MRI_perc.xaxis.axis_label_standoff = 0
+    fig_MRI_perc.title.align = 'center'
+    fig_MRI_perc.min_border_bottom = 50    
+    for event_counter, ser_event in df_risk_band.iterrows():
+        fig_MRI_perc.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))   
+    fig_MRI_perc.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))          
+    fig_MRI_res.legend.location = 'top_left'
+    fig_MRI_res.legend.background_fill_alpha  = 0.75
+    fig_MRI_res.legend.spacing  = 0       
+    fig_MRI_res.xaxis.axis_label_standoff = 0    
+    fig_MRI_res.title.align = 'center'
+    fig_MRI_res.min_border_bottom = 50     
+    for event_counter, ser_event in df_risk_band.iterrows():
+        fig_MRI_res.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))     
+    fig_MRI_res.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))
+    
+    # Consloidating plots for asset group and adding layout to resulting plot
+    arr_figures.append(b_col(fig_MRI_z_score, fig_MRI_perc, fig_MRI_res))       
+        
+    return arr_figures
