@@ -488,7 +488,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
       bokeh_toolbar (string) - enumeration of tools for figures
       min_date (datetime) - start date for plotting
       max_date (datetime) - end date for plotting    
-      df_risk_band (pd.DataFrame) - list of events to draw bands at plots       
+      df_risk_band (pd.DataFrame) - list of events to draw bands at plots  
     """
     
     import numpy as np
@@ -498,10 +498,10 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     import bokeh.models as b_md    
     from bokeh.palettes import Set2, Set3
     import bokeh.plotting as b_pl
-    
-    # Defining output to notebook
+
+    # Defining output to notebook or to html file
     b_pl.output_notebook()
-    
+        
     # Extracting asset level data
     df_raw_data = pd.read_hdf(asset_hdf_path, asset_selected_key)
     df_raw_data.set_index('Date', drop = True, inplace = True)
