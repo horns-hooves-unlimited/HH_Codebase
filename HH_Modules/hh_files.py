@@ -52,8 +52,8 @@ def hh_get_xlsx_risk_events(source_file_path, tab_name):
     df_risk_events['Begin date'] = pd.to_datetime(df_risk_events['Beginning'], format = events_date_format)
     df_risk_events['End date'] = pd.to_datetime(df_risk_events['End'], format = events_date_format)
     df_risk_events.drop(columns = ['Beginning', 'End'], inplace = True)
-    df_risk_events    
-    
+
+    print('hh_get_xlsx_risk_events: Risk events data from', source_file_path, 'successfully exported to DataFrame')      
     return df_risk_events
 
 
@@ -75,7 +75,8 @@ def hh_get_country_codes():
     df_full_codes[['ISO SHORT', 'ISO LONG']] = df_full_codes['ISO CODES'].str.split(' / ', expand = True)
     df_result = df_full_codes[['ISO SHORT', 'ISO LONG']]      
     df_result.index = df_result.index.str.upper()
-    
+
+    print('hh_get_country_codes: Country codes from', url_country_code, 'successfully exported to DataFrame') 
     return df_result
 
 
@@ -104,12 +105,13 @@ def hh_get_msci_index_membership(source_file_path):
     df_index_member = df_members['Member'].str.slice(0, -4).to_frame()
     df_index_member['Member Code'] = df_members['Member'].str.slice(-3, -1)
     
+    print('hh_get_msci_index_membership: Information about index membership from', source_file_path, 'successfully exported to DataFrame')     
     return [df_index_class, df_index_member]
 
 
 def hh_get_msci_reclassification(source_file_path):
     """
-    Version 0.02 2019-04-22
+    Version 0.03 2019-04-24
     
     ATTINTION: Follow the instruction of file preparing!!!
     
@@ -131,7 +133,9 @@ def hh_get_msci_reclassification(source_file_path):
     df_reclass_source[['From Class', 'To Class']] = df_reclass_source['MARKET RECLASSIFICATION'].str.strip(' ').str.extract('(From )(.+?)(.+to )(.)')[[1, 3]] + 'M'
     df_reclass_source['Change Date'] = pd.to_datetime(df_reclass_source['DATE*'], format = '%B %Y') + pd.DateOffset(months = 1)
     df_reclass = df_reclass_source.loc[ : , 'Country' : 'Change Date']
+    df_reclass['Country'] = df_reclass['Country'].str.replace(r'&', 'AND')
     
+    print('hh_get_msci_reclassification: Information about MSCI reclassifications from', source_file_path, 'successfully exported to DataFrame')    
     return df_reclass    
 
 
@@ -168,6 +172,7 @@ def hh_get_msci_returns(source_dir_path, str_part_to_replace):
     df_returns = pd.concat(arr_from_file, axis = 1, join = 'outer')
     df_returns.columns.name = 'Country'
     
+    print('hh_get_msci_returns: Information about MSCI returns from', source_dir_path, 'successfully consolidated to DataFrame')    
     return df_returns
 
 
@@ -178,7 +183,7 @@ def hh_save_msci_returns(df_to_save, returns_freq, returns_size, returns_style, 
     FUNCTIONALITY: 
      Saves msci returns to hdf file through appending with key formed as "returns_freq/returns_size/returns_style/returns_suite/returns_level/returns_currency"
     OUTPUT:
-      returns_key (string) - key to created/appended object inside the HDF5 file
+      object_msci_returns_hdf (string) - key to created/appended object inside the HDF5 file
     INPUT:
       df_to_save (pd.DataFrame) - dataset to be stored
       returns_freq (string) - frequency of returns ('daily' / 'monthly' / 'yearly')
@@ -208,5 +213,71 @@ def hh_save_msci_returns(df_to_save, returns_freq, returns_size, returns_style, 
     
     object_msci_returns_hdf = 'msci_returns_data/' + returns_freq + '/' + returns_size + '/' + returns_style + '/' + returns_suite + '/' + returns_level + '/' + returns_currency
     df_to_save_stack.to_hdf(result_file_path, key = object_msci_returns_hdf, mode = 'a', format = 'table', append = True)
-    
+
+    print('hh_save_msci_returns: Information about MSCI returns with options', object_msci_returns_hdf, 'successfully saved to', result_file_path)    
     return object_msci_returns_hdf
+
+
+def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_file_path, reclass_file_path):
+    """
+    Version 0.01 2019-04-24
+       
+    FUNCTIONALITY: 
+     
+    OUTPUT:
+      returns_key (string) - key to created/appended object inside the HDF5 file
+    INPUT:
+      returns_file_path (string) - path to HDF5 file containing returns info to get boundary dates for countries returns
+      returns_key (string) - key to object inside the HDF5 file
+      membership_file_path (string) - path to xlsx data file with current MSCI membership info
+      reclass_file_path (string) - path to xlsx data file with current MSCI reclassifications history
+    """
+    
+    import pandas as pd
+    import sys 
+    sys.path.append('../..')
+    
+    from HH_Modules.hh_files import hh_get_msci_index_membership
+    from HH_Modules.hh_files import hh_get_msci_reclassification
+
+    date_format = '%Y-%m-%d'
+    
+    df_returns = pd.read_hdf(returns_file_path, returns_key)
+    [df_index_class, df_index_member] = hh_get_msci_index_membership(membership_file_path)
+    df_reclass = hh_get_msci_reclassification(reclass_file_path)
+
+    # Preparing DataFrame with current market indexes info: Country Code(index), Country Name, boundary observations datesand current index membership info
+    df_country_status = pd.DataFrame(index = df_returns.sort_index(level = 'Code').index.unique(level = 'Code'), columns = ['Country', 'Start Date', 'End Date'])
+    for country_code in df_country_status.index:
+        if (country_code != 'INDEX'):
+            df_country_status.loc[country_code, 'Country'] = df_returns.xs(country_code, level = 'Code').index.values[0][1]
+            df_country_status.loc[country_code, 'Start Date'] = df_returns.xs(country_code, level = 'Code').index.values[0][0].strftime(date_format)
+            df_country_status.loc[country_code, 'End Date'] = df_returns.xs(country_code, level = 'Code').index.values[-1][0].strftime(date_format)        
+        
+    df_country_status.drop('INDEX', inplace = True)
+    df_country_status = df_country_status.merge(df_index_member.loc[['DM', 'EM', 'FM']].reset_index(), 
+                                                how = 'left', left_index = True, right_on = 'Member Code').set_index('Member Code').drop('Member', axis = 1)
+    df_country_status.fillna('SM', inplace = True)
+    df_country_status.head()
+    df_country_status.reset_index(inplace = True)
+
+    # Integrating reclassifications history to current market indexes info: correcting starting boundary for current membership due to history and adding new history rows
+    df_reclass.sort_values('Change Date', axis = 0, ascending = False, inplace = True)
+    for row_index, reclass_row in df_reclass.iterrows():
+        df_country_reclass = df_country_status[df_country_status['Country'] == reclass_row['Country']].copy()
+        df_country_reclass = df_country_reclass[df_country_reclass['Index Name'] == reclass_row['To Class']]
+        if (len(df_country_reclass.index) > 0):
+            index_status_row = pd.to_datetime(df_country_reclass['End Date'], format = date_format).idxmin()
+            ser_new_country_status = df_country_status.loc[index_status_row].copy()
+            ser_new_country_status['End Date'] = (reclass_row['Change Date'] - pd.DateOffset(days = 1)).strftime(date_format)
+            ser_new_country_status['Index Name'] = reclass_row['From Class']
+            df_country_status.loc[index_status_row, 'Start Date'] = reclass_row['Change Date'].strftime(date_format)
+            df_country_status = df_country_status.append(ser_new_country_status, ignore_index = True)
+        else:
+            print('hh_get_msci_classification_evolution: Country not found in current indexes DM, EM, FM and Standalone:', reclass_row['Country'])
+            
+    df_country_status.sort_values(['Member Code', 'Start Date'], axis = 0, inplace = True)
+    df_country_status.set_index('Member Code', drop = True, inplace = True)
+    
+    print('hh_get_msci_classification_evolution: MSCI membership history successfulle formed')
+    return df_country_status
