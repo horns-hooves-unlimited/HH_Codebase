@@ -185,7 +185,7 @@ def hh_save_msci_returns(df_to_save, returns_freq, returns_size, returns_style, 
     OUTPUT:
       object_msci_returns_hdf (string) - key to created/appended object inside the HDF5 file
     INPUT:
-      df_to_save (pd.DataFrame) - dataset to be stored
+      df_to_save (pd.DataFrame) - data set to be stored
       returns_freq (string) - frequency of returns ('daily' / 'monthly' / 'yearly')
       returns_size (string) - size of capitalization for businesses to be included to index ('standart' or other sample)
       returns_style (string) - returns style ('value' / 'growth' / 'none')
@@ -220,12 +220,12 @@ def hh_save_msci_returns(df_to_save, returns_freq, returns_size, returns_style, 
 
 def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_file_path, reclass_file_path):
     """
-    Version 0.01 2019-04-24
+    Version 0.02 2019-04-25
        
     FUNCTIONALITY: 
-     
+      Forming MSCI history on base of current membership info, reclassifications info and returns start dates    
     OUTPUT:
-      returns_key (string) - key to created/appended object inside the HDF5 file
+      df_country_status (pd.DataFrame) - data set of full MSCI history
     INPUT:
       returns_file_path (string) - path to HDF5 file containing returns info to get boundary dates for countries returns
       returns_key (string) - key to object inside the HDF5 file
@@ -251,8 +251,8 @@ def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_
     for country_code in df_country_status.index:
         if (country_code != 'INDEX'):
             df_country_status.loc[country_code, 'Country'] = df_returns.xs(country_code, level = 'Code').index.values[0][1]
-            df_country_status.loc[country_code, 'Start Date'] = df_returns.xs(country_code, level = 'Code').index.values[0][0].strftime(date_format)
-            df_country_status.loc[country_code, 'End Date'] = df_returns.xs(country_code, level = 'Code').index.values[-1][0].strftime(date_format)        
+            df_country_status.loc[country_code, 'Start Date'] = df_returns.xs(country_code, level = 'Code').index.values[0][0]
+            df_country_status.loc[country_code, 'End Date'] = df_returns.xs(country_code, level = 'Code').index.values[-1][0]
         
     df_country_status.drop('INDEX', inplace = True)
     df_country_status = df_country_status.merge(df_index_member.loc[['DM', 'EM', 'FM']].reset_index(), 
@@ -267,11 +267,11 @@ def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_
         df_country_reclass = df_country_status[df_country_status['Country'] == reclass_row['Country']].copy()
         df_country_reclass = df_country_reclass[df_country_reclass['Index Name'] == reclass_row['To Class']]
         if (len(df_country_reclass.index) > 0):
-            index_status_row = pd.to_datetime(df_country_reclass['End Date'], format = date_format).idxmin()
+            index_status_row = df_country_reclass['End Date'].idxmin()
             ser_new_country_status = df_country_status.loc[index_status_row].copy()
-            ser_new_country_status['End Date'] = (reclass_row['Change Date'] - pd.DateOffset(days = 1)).strftime(date_format)
+            ser_new_country_status['End Date'] = reclass_row['Change Date'] - pd.DateOffset(days = 1)
             ser_new_country_status['Index Name'] = reclass_row['From Class']
-            df_country_status.loc[index_status_row, 'Start Date'] = reclass_row['Change Date'].strftime(date_format)
+            df_country_status.loc[index_status_row, 'Start Date'] = reclass_row['Change Date']
             df_country_status = df_country_status.append(ser_new_country_status, ignore_index = True)
         else:
             print('hh_get_msci_classification_evolution: Country not found in current indexes DM, EM, FM and Standalone:', reclass_row['Country'])
@@ -279,5 +279,55 @@ def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_
     df_country_status.sort_values(['Member Code', 'Start Date'], axis = 0, inplace = True)
     df_country_status.set_index('Member Code', drop = True, inplace = True)
     
-    print('hh_get_msci_classification_evolution: MSCI membership history successfulle formed')
+    print('hh_get_msci_classification_evolution: MSCI membership history successfully formed')
     return df_country_status
+
+
+def hh_get_ison_universe(source_file_path, df_msci_membership, flag_drop_to_msci = True):
+    """
+    Version 0.01 2019-04-26
+       
+    FUNCTIONALITY: 
+      Exporting and formatting ISON universe history
+    OUTPUT:
+      df_country_status (pd.DataFrame) - data set of full MSCI history
+    INPUT:
+      returns_file_path (string) - path to HDF5 file containing returns info to get boundary dates for countries returns
+      returns_key (string) - key to object inside the HDF5 file
+      membership_file_path (string) - path to xlsx data file with current MSCI membership info
+      reclass_file_path (string) - path to xlsx data file with current MSCI reclassifications history
+    """
+    
+    import pandas as pd
+    import sys 
+    sys.path.append('../..')
+    from datetime import datetime    
+    from HH_Modules.hh_files import hh_get_country_codes
+    
+    df_country_codes = hh_get_country_codes()
+    
+    df_ison_membership = pd.read_excel(source_file_path)
+    df_ison_membership.columns = ['Class Number', 'Country Code', 'Start Date', 'End Date', 'Status', 'Index Name']
+    df_ison_membership.drop(['Class Number', 'Status'], axis = 1, inplace = True)
+    df_ison_membership['End Date'].fillna(datetime(2018, 12, 31), inplace = True)
+    df_ison_membership.set_index('Country Code', inplace = True)
+    df_ison_membership.sort_values(['Country Code', 'Start Date'], axis = 0, inplace = True)
+    df_ison_membership.loc[df_ison_membership['Start Date'] == '1970-01-01', 'Start Date'] = datetime(1969, 12, 31)
+    df_ison_membership = df_ison_membership.merge(df_country_codes.reset_index(), how = 'left', left_index = True, right_on = 'ISO SHORT')
+    df_ison_membership.drop('ISO LONG', axis = 1, inplace = True)
+    df_ison_membership.columns = ['Start Date', 'End Date', 'Index Name', 'Country', 'Member Code']
+    df_ison_membership.set_index('Member Code', inplace = True)
+    if (flag_drop_to_msci):
+        df_ison_membership = df_ison_membership[df_ison_membership.index.isin(df_msci_membership.index)]
+        df_ison_membership = df_ison_membership.reset_index().merge(df_msci_membership['Start Date'].reset_index().groupby('Member Code').min(), how = 'left',
+                                                                    left_on = 'Member Code', right_index = True).set_index('Member Code')   
+        df_ison_membership.loc[(df_ison_membership['Start Date_x'] < df_ison_membership['Start Date_y']),
+                               'Start Date_x'] = df_ison_membership.loc[(df_ison_membership['Start Date_x'] < df_ison_membership['Start Date_y']), 'Start Date_y']
+        df_ison_membership.drop('Start Date_y', axis = 1, inplace = True)
+        df_ison_membership.rename(columns={'Start Date_x' : 'Start Date'}, inplace = True)
+        df_ison_membership.reset_index(inplace = True)
+        df_ison_membership.drop(df_ison_membership[df_ison_membership['Start Date'] > df_ison_membership['End Date']].index, inplace = True)
+        df_ison_membership.set_index('Member Code', inplace = True)
+        
+    print('hh_get_ison_universe: Information about ISON Universe successfully successfully exported to DataFrame')    
+    return df_ison_membership

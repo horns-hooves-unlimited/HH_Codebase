@@ -470,7 +470,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
       1) Drawing plot for all groups
       2) Drawing plot for MRI
     OUTPUT:
-      arr_figures (array) - array of group figures and MRI figure
+      arr_figures (array) - array of group bokeh.plotting.figure and MRI bokeh.plotting.figure
     INPUT:
       df_model_asset (pd.DataFrame) - asset list and weights descripted at model    
       df_model_MRI (pd.DataFrame) - group list and weights descripted at model    
@@ -572,7 +572,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
         for event_counter, ser_event in df_risk_band.iterrows():
             fig_group_mean.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))
         fig_group_mean.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline'))
-        # Consloidating plots for asset group and adding layout to resulting plot
+        # Conslidating plots for asset group and adding layout to resulting plot
         arr_figures.append(b_col(fig_group_raw, fig_group_z_score, fig_group_mean))
 
     # Defining color palette for MRI
@@ -632,3 +632,55 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     arr_figures.append(b_col(fig_MRI_z_score, fig_MRI_perc, fig_MRI_res))       
         
     return arr_figures
+
+
+def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
+    """
+    Version 0.03 2019-04-26
+    
+    FUNCTIONALITY:
+      Drawing plot for markets membership
+    OUTPUT:
+      fig_history (bokeh.plotting.figure) - figure to display
+    INPUT:
+      df_history (pd.DataFrame) - history data set for plotting
+      figure_size (tuple) - figure shapes
+      figure_title (string) - figure title
+    """
+    
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime 
+    from bokeh.palettes import Set2, Set3
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md
+    from bokeh.layouts import row as b_row
+    from bokeh.layouts import column as b_col
+    from bokeh.transform import factor_cmap
+
+    # Defining output to notebook or to html file
+    b_pl.output_notebook()
+        
+    date_format = '%Y-%m-%d'
+    # Preparing DataFrame to hovertool construction
+    df_history.rename(columns = {'Start Date': 'Start_Date', 'End Date': 'End_Date'}, inplace = True)
+    # Defining borders for x axe
+    date_left_border = df_history['Start_Date'].min()
+    date_right_border = df_history['End_Date'].max()
+    # Defining array for factor_cmap
+    arr_classes = df_history['Index Name'].unique()
+    # Defining DataSource for plotting
+    cds_membership = b_md.ColumnDataSource(df_history)
+    # Initialising figure
+    fig_history = b_pl.figure(tools = [], toolbar_location = None, plot_width = figure_size[0], plot_height = figure_size[1], title = figure_title,
+                              x_axis_label = 'Date', x_axis_type = 'datetime', x_range = (date_left_border, date_right_border),
+                              y_range = df_history.sort_index(ascending = False).index.unique().to_numpy())
+    # Drawing horizontal bars for all DataFrame rows at once
+    fig_history.hbar(source = cds_membership, y = 'Member Code', left = 'Start_Date', right = 'End_Date',
+                     height = 1, line_color = 'white', fill_color = factor_cmap('Index Name', palette = Set2[4], factors = arr_classes), legend = 'Index Name')
+    #Configuring output
+    fig_history.legend.location = "top_left"
+    fig_history.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('[', '@Start_Date{%F}'),(']', '@End_Date{%F}')],
+                                         formatters = {'Start_Date': 'datetime', 'End_Date': 'datetime'}))    
+        
+    return fig_history
