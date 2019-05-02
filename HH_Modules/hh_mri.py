@@ -552,7 +552,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
         fig_group_raw.title.align = 'center'   
         fig_group_raw.min_border_bottom = 50
         for event_counter, ser_event in df_risk_band.iterrows():
-            fig_group_raw.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))
+            fig_group_raw.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))
         fig_group_raw.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))            
         fig_group_z_score.legend.location = 'top_left'                
         fig_group_z_score.legend.background_fill_alpha  = 0.75        
@@ -561,7 +561,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
         fig_group_z_score.title.align = 'center'    
         fig_group_z_score.min_border_bottom = 50
         for event_counter, ser_event in df_risk_band.iterrows():
-            fig_group_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))        
+            fig_group_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))        
         fig_group_z_score.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))             
         fig_group_mean.legend.location = 'top_left'
         fig_group_mean.legend.background_fill_alpha  = 0.75  
@@ -570,7 +570,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
         fig_group_mean.title.align = 'center'
         fig_group_mean.min_border_bottom = 50        
         for event_counter, ser_event in df_risk_band.iterrows():
-            fig_group_mean.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))
+            fig_group_mean.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))
         fig_group_mean.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline'))
         # Conslidating plots for asset group and adding layout to resulting plot
         arr_figures.append(b_col(fig_group_raw, fig_group_z_score, fig_group_mean))
@@ -607,7 +607,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     fig_MRI_z_score.title.align = 'center'  
     fig_MRI_z_score.min_border_bottom = 50 
     for event_counter, ser_event in df_risk_band.iterrows():
-        fig_MRI_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))    
+        fig_MRI_z_score.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))    
     fig_MRI_z_score.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))          
     fig_MRI_perc.legend.location = 'top_left'
     fig_MRI_perc.legend.background_fill_alpha  = 0.75
@@ -616,7 +616,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     fig_MRI_perc.title.align = 'center'
     fig_MRI_perc.min_border_bottom = 50    
     for event_counter, ser_event in df_risk_band.iterrows():
-        fig_MRI_perc.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))   
+        fig_MRI_perc.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))   
     fig_MRI_perc.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))          
     fig_MRI_res.legend.location = 'top_left'
     fig_MRI_res.legend.background_fill_alpha  = 0.75
@@ -625,7 +625,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     fig_MRI_res.title.align = 'center'
     fig_MRI_res.min_border_bottom = 50     
     for event_counter, ser_event in df_risk_band.iterrows():
-        fig_MRI_res.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha=0.1, fill_color='red'))     
+        fig_MRI_res.add_layout(b_md.BoxAnnotation(left = ser_event['Begin date'], right = ser_event['End date'], fill_alpha = 0.1, fill_color = 'red'))     
     fig_MRI_res.add_tools(b_md.HoverTool(tooltips = [('Date', '@x{%F}')], formatters = {'x': 'datetime'}, mode = 'vline', names = ['0']))
     
     # Consloidating plots for asset group and adding layout to resulting plot
@@ -636,12 +636,14 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
 
 def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
     """
-    Version 0.03 2019-04-26
+    Version 0.04 2019-04-30
     
     FUNCTIONALITY:
       Drawing plot for markets membership
     OUTPUT:
-      fig_history (bokeh.plotting.figure) - figure to display
+      bokeh.layouts.column that consists of:
+          range_slider_period (bokeh.models.widgets.DateRangeSlider) - slider to date period choosing for plot investigating purposes
+          fig_history (bokeh.plotting.figure) - figure to display
     INPUT:
       df_history (pd.DataFrame) - history data set for plotting
       figure_size (tuple) - figure shapes
@@ -657,30 +659,278 @@ def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
     from bokeh.layouts import row as b_row
     from bokeh.layouts import column as b_col
     from bokeh.transform import factor_cmap
+    from bokeh.models.widgets import DateRangeSlider
+    from bokeh.models import CustomJS
 
     # Defining output to notebook or to html file
     b_pl.output_notebook()
         
     date_format = '%Y-%m-%d'
-    # Preparing DataFrame to hovertool construction
-    df_history.rename(columns = {'Start Date': 'Start_Date', 'End Date': 'End_Date'}, inplace = True)
     # Defining borders for x axe
-    date_left_border = df_history['Start_Date'].min()
-    date_right_border = df_history['End_Date'].max()
-    # Defining array for factor_cmap
-    arr_classes = df_history['Index Name'].unique()
-    # Defining DataSource for plotting
-    cds_membership = b_md.ColumnDataSource(df_history)
+    date_left_border = df_history['Start Date'].min()
+    date_right_border = df_history['End Date'].max()
     # Initialising figure
-    fig_history = b_pl.figure(tools = [], toolbar_location = None, plot_width = figure_size[0], plot_height = figure_size[1], title = figure_title,
+    fig_history = b_pl.figure(tools = ['box_zoom, reset'], plot_width = figure_size[0], plot_height = figure_size[1], title = figure_title,
                               x_axis_label = 'Date', x_axis_type = 'datetime', x_range = (date_left_border, date_right_border),
                               y_range = df_history.sort_index(ascending = False).index.unique().to_numpy())
-    # Drawing horizontal bars for all DataFrame rows at once
-    fig_history.hbar(source = cds_membership, y = 'Member Code', left = 'Start_Date', right = 'End_Date',
-                     height = 1, line_color = 'white', fill_color = factor_cmap('Index Name', palette = Set2[4], factors = arr_classes), legend = 'Index Name')
+    # Range Slider Tuning
+    slider_callback = CustomJS(args = dict(fig_to_update = fig_history), 
+                               code = """
+                                      var slider_period = cb_obj.value;
+                                      fig_to_update.x_range.start = slider_period[0];
+                                      fig_to_update.x_range.end = slider_period[1];
+                                      fig_to_update.change.emit();
+                                      """)
+
+    range_slider_period = DateRangeSlider(start = date_left_border, end = date_right_border, value = (date_left_border, date_right_border), 
+                                          title = "Date period to display", width = (figure_size[1] - 25), bar_color = 'gray', step = 1)
+    range_slider_period.js_on_change('value', slider_callback)
+
+    # Iterating market classes to allow muting
+    for index_counter, history_index in enumerate(df_history['Index Name'].unique()):
+        # Defining DataSource for plotting
+        cds_membership = b_md.ColumnDataSource(df_history[df_history['Index Name'] == history_index])    
+        # Drawing horizontal bars for all DataFrame rows at once
+        fig_history.hbar(source = cds_membership, y = 'Member Code', left = 'Start Date', right = 'End Date',
+                         height = 1, line_color = 'white', fill_color = Set2[4][index_counter], legend = 'Index Name',
+                         muted_alpha = 0.25, muted_line_color = 'white', muted_color = Set2[4][index_counter])
     #Configuring output
-    fig_history.legend.location = "top_left"
-    fig_history.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('[', '@Start_Date{%F}'),(']', '@End_Date{%F}')],
-                                         formatters = {'Start_Date': 'datetime', 'End_Date': 'datetime'}))    
+    fig_history.legend.location = 'top_left'
+    fig_history.legend.click_policy = 'mute'
+    fig_history.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
+                                         formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
         
-    return fig_history
+    return b_col(range_slider_period, fig_history)
+
+
+def hh_bokeh_compare_universe_data(df_compare, figure_size, figure_title):
+    """
+    Version 0.01 2019-04-30
+    
+    FUNCTIONALITY:
+      Drawing plot for comparing markets membership in MSCI and ISON universes
+    OUTPUT:
+      bokeh.layouts.column that consists of:
+          range_slider_period (bokeh.models.widgets.DateRangeSlider) - slider to date period choosing for plot investigating purposes
+          fig_compare (bokeh.plotting.figure) - figure to display
+    INPUT:
+      df_compare (pd.DataFrame) - result of comparision of data sets for plotting
+      figure_size (tuple) - figure shapes
+      figure_title (string) - figure title
+    """
+    
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime 
+    from bokeh.palettes import Set2, Set3
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md
+    from bokeh.layouts import row as b_row
+    from bokeh.layouts import column as b_col
+    from bokeh.transform import factor_cmap
+    from bokeh.models.widgets import DateRangeSlider
+    from bokeh.models import CustomJS
+
+    # Defining output to notebook or to html file
+    b_pl.output_notebook()
+        
+    date_format = '%Y-%m-%d'
+    # Defining borders for x axe
+    date_left_border = df_compare['Start Date'].min()
+    date_right_border = df_compare['End Date'].max()
+    # Initialising figure
+    fig_compare = b_pl.figure(tools = ['box_zoom, reset'], plot_width = figure_size[0], plot_height = figure_size[1], title = figure_title,
+                              x_axis_label = 'Date', x_axis_type = 'datetime', x_range = (date_left_border, date_right_border),
+                              y_range = df_compare['Member Code'].sort_values(ascending = False).unique())
+    # Range Slider Tuning
+    slider_callback = CustomJS(args = dict(fig_to_update = fig_compare), 
+                               code = """
+                                      var slider_period = cb_obj.value;
+                                      fig_to_update.x_range.start = slider_period[0];
+                                      fig_to_update.x_range.end = slider_period[1];
+                                      fig_to_update.change.emit();
+                                      """)
+
+    range_slider_period = DateRangeSlider(start = date_left_border, end = date_right_border, value = (date_left_border, date_right_border), 
+                                          title = "Date period to display", width = 975, bar_color = 'gray', step = 1)
+    range_slider_period.js_on_change('value', slider_callback)
+
+    # Iterating market classes to allow muting
+    for status_counter, compare_status in enumerate(df_compare['Status'].unique()):
+    # Defining DataSource for plotting
+        cds_comparision = b_md.ColumnDataSource(df_compare[df_compare['Status'] == compare_status])
+        # Drawing horizontal bars for all DataFrame rows at once
+        fig_compare.hbar(source = cds_comparision, y = 'Member Code', left = 'Start Date', right = 'End Date',
+                         height = 1, line_color = 'white', fill_color = Set2[4][status_counter], legend = 'Status',
+                         muted_alpha = 0.25, muted_line_color = 'white', muted_color = Set2[4][status_counter])
+    #Configuring output
+    fig_compare.legend.location = 'top_left'
+    fig_compare.legend.click_policy = 'mute'
+    fig_compare.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
+                                         formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
+        
+    return b_col(range_slider_period, fig_compare)
+
+def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_pivot, figure_size, figure_title):
+    """
+    Version 0.01 2019-05-02
+    
+    FUNCTIONALITY:
+      Drawing plot for illustrating MSCI returns for choosed country
+    OUTPUT:
+      bokeh.layouts.column that consists of:
+          radio_order (bokeh.models.widgets.RadioGroup) - radio menu to choose country sorting order
+          select_country (bokeh.models.widgets.Select) - list of countries to select          
+          fig_returns (bokeh.plotting.figure) - figure to display
+          range_slider_period (bokeh.models.widgets.DateRangeSlider) - slider to date period choosing for plot investigating purposes
+    INPUT:
+      df_current (pd.DataFrame) - current membership of MSCI
+      df_history (pd.DataFrame) - MSCI membership history
+      df_USD_pivot (pd.DataFrame) - country returns data in USD
+      df_LOC_pivot (pd.DataFrame) - country returns data in local currency      
+      figure_size (tuple) - figure shapes
+      figure_title (string) - figure title
+    """
+
+    import numpy as np
+    import pandas as pd
+    from datetime import datetime 
+    from bokeh.palettes import Set2, Set3
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md
+    from bokeh.layouts import row as b_row
+    from bokeh.layouts import column as b_col
+    from bokeh.layouts import widgetbox
+    from bokeh.transform import factor_cmap
+    from bokeh.models.widgets import Dropdown, Select, RadioGroup, DateRangeSlider
+    from bokeh.models import CustomJS
+
+    # Defining output to notebook or to html file
+    b_pl.output_notebook()
+    # Defining initial country
+    code_initial = 'AR'
+    # Preparing date output format
+    date_format = '%Y-%m-%d'
+    # Creating sorting orders names
+    arr_labels = []
+    arr_labels.append('Sort by: Country Name')
+    arr_labels.append('Sort by: Country Code')
+    arr_labels.append('Sort by: Market + Country Name')
+    arr_labels.append('Sort by: Market + Country Code')
+    # Creating sorted by different sorting orders country lists
+    arr_sortings = []
+    arr_sortings.append(list(zip(list(df_current.sort_values(by = 'Country')['Member Code']), 
+                                 list(df_current.sort_values(by = 'Country')['Search Name']))))
+    arr_sortings.append(list(zip(list(df_current.sort_values(by = 'Member Code')['Member Code']), 
+                                 list(df_current.sort_values(by = 'Member Code')['Search Name']))))
+    arr_sortings.append(list(zip(list(df_current.sort_values(by = ['Index Name', 'Country'])['Member Code']), 
+                                 list(df_current.sort_values(by = ['Index Name', 'Country'])['Search Name']))))
+    arr_sortings.append(list(zip(list(df_current.sort_values(by = ['Index Name', 'Member Code'])['Member Code']), 
+                                 list(df_current.sort_values(by = ['Index Name', 'Member Code'])['Search Name']))))
+    # Initial country defining
+    df_USD_pivot['YY'] = df_USD_pivot[code_initial]
+    df_LOC_pivot['YY'] = df_LOC_pivot[code_initial]
+    # DataSource defining
+    cds_USD_returns = b_md.ColumnDataSource(df_USD_pivot)
+    cds_LOC_returns = b_md.ColumnDataSource(df_LOC_pivot)
+    # Initial x axis boundaries defining
+    date_left_border = df_USD_pivot['YY'].idxmin()
+    date_right_border = df_USD_pivot['YY'].idxmax()
+    # Creating main figure
+    fig_returns = b_pl.figure(tools = ['pan, box_zoom, reset'], plot_width = figure_size[0], plot_height = figure_size[1], 
+                              title = figure_title + ' (' + code_initial + ')',
+                              x_axis_label = 'Date', x_axis_type = 'datetime', x_range = (date_left_border, date_right_border))
+    # Drawing plots
+    line_USD = fig_returns.line(source = cds_USD_returns, x = 'Date', y = 'YY', legend = 'USD', color = 'green', line_width = 2, name = 'USD')
+    line_LOC = fig_returns.line(source = cds_LOC_returns, x = 'Date', y = 'YY', legend = 'LOCAL', color = 'blue', line_width = 2, name = 'LOC')
+    #Configuring output
+    fig_returns.legend.location = 'top_left' 
+    fig_returns.add_tools(b_md.HoverTool(tooltips = [('Value', '@YY{0,0.00}'), ('Date', '@Date{%F}')], formatters = {'Date': 'datetime', 'YY': 'numeral'})) 
+    # Constant maximum quantity of reckassificationsa for one country
+    num_annotations = 5
+    # Creating array of blank annotations
+    arr_annotations = []
+    for counter_annotation in np.arange(num_annotations):
+        arr_annotations.append(b_md.BoxAnnotation(left = date_right_border, right = date_right_border, fill_alpha = 0.2, fill_color = 'white'))
+        fig_returns.add_layout(arr_annotations[counter_annotation])
+    # Creating disctionary for annotations colors
+    dict_ann_colors = {'DM': Set2[4][0], 'EM': Set2[4][1], 'FM': Set2[4][2], 'SM': Set2[4][3]}
+    # Creating datasource for annotations
+    cds_annotations = b_md.ColumnDataSource(df_history)
+#Drawing annotations for initial country
+    counter_annotations = 0
+    for reclass_index, ser_reclass in df_history.iterrows():
+        if (reclass_index == code_initial):
+            arr_annotations[counter_annotations].fill_color = dict_ann_colors[ser_reclass['Index Name']];
+            arr_annotations[counter_annotations].left = ser_reclass['Start Date'];
+            arr_annotations[counter_annotations].right = ser_reclass['End Date'];
+            counter_annotations = counter_annotations + 1;
+    # Range Slider for date period tuning (including connection betwwen slider values and figure boundaries)
+    slider_callback = CustomJS(args = dict(fig_to_update = fig_returns), 
+                               code = """
+                                      var slider_period = cb_obj.value;
+                                      fig_to_update.x_range.start = slider_period[0];
+                                      fig_to_update.x_range.end = slider_period[1];
+                                      fig_to_update.change.emit();
+                                      """)
+    range_slider_period = DateRangeSlider(start = date_left_border, end = date_right_border, value = (date_left_border, date_right_border), 
+                                          title = "Date period to display", width = figure_size[0] - 25, bar_color = 'gray', step = 1)
+    range_slider_period.js_on_change('value', slider_callback)
+    # Select for choosing country tuning (including connection between selected value and range slider boundaries, figure plots, figure boundaries, figure title)
+    select_callback = CustomJS(args = dict(fig_to_update = fig_returns, figure_title = figure_title, widget_to_update = range_slider_period,
+                                           cds_USD = cds_USD_returns, cds_LOC = cds_LOC_returns, cds_annotations = cds_annotations,
+                                           date_max = date_right_border, 
+                                           arr_annotations = arr_annotations, dict_colors = dict_ann_colors, num_annotations = num_annotations),
+                               code = """
+                                      var chosen_country = cb_obj.value;    
+                                      cds_USD.data['YY'] = cds_USD.data[chosen_country];
+                                      cds_LOC.data['YY'] = cds_LOC.data[chosen_country];                                  
+                                      var date_min = cds_USD.data['Date'][0]                                 
+                                      for (var i = 1; i <= cds_USD.get_length(); i++)
+                                      {
+                                        if (!isNaN(cds_USD.data['YY'][i]))
+                                        {
+                                          date_min = cds_USD.data['Date'][i];
+                                          break;
+                                        }
+                                      }
+                                      widget_to_update.start = date_min;
+                                      widget_to_update.end = date_max;
+                                      widget_to_update.value[0] = date_min;
+                                      widget_to_update.value[1] = date_max;                               
+                                      widget_to_update.change.emit();
+                                      cds_USD.change.emit();
+                                      cds_LOC.change.emit();
+                                      var counter_ann = 0;
+                                      for (var counter_ann = 0; counter_ann < num_annotations; counter_ann++)
+                                      {
+                                        arr_annotations[counter_ann].fill_color = 'white';
+                                        arr_annotations[counter_ann].left = date_max;
+                                        arr_annotations[counter_ann].right = date_max;
+                                      }
+                                      counter_ann = 0;                                  
+                                      for (var i = 0; i <= cds_annotations.get_length(); i++)
+                                      {
+                                        if (cds_annotations.data['Member Code'][i] == chosen_country)
+                                        {
+                                          arr_annotations[counter_ann].fill_color = dict_colors[cds_annotations.data['Index Name'][i]];
+                                          arr_annotations[counter_ann].left = cds_annotations.data['Start Date'][i];
+                                          arr_annotations[counter_ann].right = cds_annotations.data['End Date'][i];
+                                          counter_ann = counter_ann + 1;
+                                        }
+                                      }                             
+                                      fig_to_update.x_range.start = date_min;
+                                      fig_to_update.x_range.end = date_max;                                  
+                                      fig_to_update.title.text = figure_title + ' (' + chosen_country + ')';
+                                      fig_to_update.change.emit();
+                                      """)
+    select_country = Select(title = 'Country to show returns:', options = arr_sortings[0], callback = select_callback)
+    # Radio Group for sorting order tuning (including connection betwwen active radio and slider country list)
+    radio_callback = CustomJS(args = dict(widget_to_update = select_country, order_source = arr_sortings),
+                              code = """
+                                     var sort_order = cb_obj.active;
+                                     widget_to_update.options = order_source[sort_order];                             
+                                     """)
+    radio_order = RadioGroup(labels = arr_labels, active = 0, callback = radio_callback)
+
+    return b_col(radio_order, select_country, fig_returns, range_slider_period)
