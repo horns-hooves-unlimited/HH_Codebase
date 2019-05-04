@@ -143,7 +143,7 @@ def hh_get_msci_returns(source_dir_path, str_part_to_replace):
     """
     Version 0.02 2019-04-23
     
-    ATTINTION: Follow the instruction of files preparing!!!
+    ATTENTION: Follow the instruction of files preparing!!!
     
     FUNCTIONALITY: 
       Imports and consolidates MSCI returns info from all suitable files in current directory
@@ -181,7 +181,7 @@ def hh_save_msci_returns(df_to_save, returns_freq, returns_size, returns_style, 
     Version 0.01 2019-04-23
        
     FUNCTIONALITY: 
-     Saves msci returns to hdf file through appending with key formed as "returns_freq/returns_size/returns_style/returns_suite/returns_level/returns_currency"
+      Saves msci returns to hdf file through appending with key formed as "returns_freq/returns_size/returns_style/returns_suite/returns_level/returns_currency"
     OUTPUT:
       object_msci_returns_hdf (string) - key to created/appended object inside the HDF5 file
     INPUT:
@@ -331,3 +331,65 @@ def hh_get_ison_universe(source_file_path, df_msci_membership, flag_drop_to_msci
         
     print('hh_get_ison_universe: Information about ISON Universe successfully successfully exported to DataFrame')    
     return df_ison_membership
+
+
+def hh_save_msci_subtractions(df_returns, window_size, size_measure, result_file_path, returns_freq, returns_size, returns_style, returns_suite, returns_level, returns_currency):
+    """
+    Version 0.01 2019-05-04
+    
+    FUNCTIONALITY: 
+      Importing table data from MSCI returns data set, performing rolling back window mean subtraction and saving results to result_file_path
+    OUTPUT:
+      result_object_name (string) - key to object inside the HDF5 file
+    INPUT:
+      df_returns (pd.DataFrame) - returns data set for each country
+      window_size (integer) - size of rolling back window to subtract mean and form data vector
+      size_measure (string) - measure of window size: 
+        'days' - for days offset;
+        'months' - for months offset;
+        'years' - for years offset;   
+      result_file_path - path to MSCI returns data file
+      returns_freq (string) - frequency of returns ('daily' / 'monthly' / 'yearly')
+      returns_size (string) - size of capitalization for businesses to be included to index ('standart' or other sample)
+      returns_style (string) - returns style ('value' / 'growth' / 'none')
+      returns_suite (string) - specific way of index calulation ('none' or particular suite)
+      returns_level (string) - level of returns index ('price' / 'gross' / 'net')
+      returns_currency (string) - currency of returns ('USD' / 'local')       
+    """
+
+    import numpy as np    
+    import pandas as pd
+    import sys 
+    sys.path.append('../..') 
+    from HH_Modules.hh_ts import hh_rolling_mean_subtraction    
+    # Preparing MSCI returns data for mean subtractions
+    df_returns.reset_index(level = 'Country', drop = True, inplace = True)
+    df_returns.drop('INDEX', level = 'Code', inplace = True)
+    df_returns = df_returns.swaplevel()
+    df_returns = np.log(1 + df_returns)
+    df_returns.sort_index(level = 0, inplace = True)    
+    # Constructing oblect key
+    result_object_name = 'msci_subtractions/' + returns_freq + '/' + returns_size + '/' + returns_style + '/' + returns_suite + '/' + returns_level + '/' + returns_currency   
+    # Initialising containers for further concatenations
+    arr_country_container = []
+    arr_country_index = []
+    # Iterating over countries
+    for returns_code in df_returns.index.get_level_values(0).sort_values().unique():
+        # Perforoming mean subtraction
+        try:
+            ser_country_returns_subtracted = hh_rolling_mean_subtraction(df_returns.loc[returns_code].squeeze(), 
+                                                                         window_size, size_measure)
+            arr_country_index.append(returns_code)
+            arr_country_container.append(ser_country_returns_subtracted)
+        # Checking for having enough data for each country
+        except ValueError:
+            print('Date period for country code', returns_code, 'is shorter then rolling window length')
+        # Aggregating results to common data vector
+        finally:
+            ser_returns_mean_subtracted = pd.concat(arr_country_container, axis = 0, keys = arr_country_index, 
+                                                    names = ['Country_Code', 'Value_Date', 'Rolling_Date'], copy = False)  
+    # Saving result to HDF5
+    ser_returns_mean_subtracted.to_hdf(result_file_path, key = result_object_name, mode = 'r+', format = 'table', append = False)
+    
+    print('hh_save_msci_subtractions: mean subtraction for MSCI countries performed and saved to:', result_file_path, 'with key:', result_object_name)          
+    return result_object_name
