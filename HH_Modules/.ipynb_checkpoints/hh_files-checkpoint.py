@@ -131,7 +131,7 @@ def hh_get_msci_reclassification(source_file_path):
     df_reclass_source = df_reclass_source[df_reclass_source['MARKET RECLASSIFICATION'].str.contains(' to ')]
     df_reclass_source['Country'] = df_reclass_source['COUNTRY INDEXES'].str.replace('MSCI ', '').str.replace(' Index', '').str.replace('*', '').str.rstrip().str.upper()
     df_reclass_source[['From Class', 'To Class']] = df_reclass_source['MARKET RECLASSIFICATION'].str.strip(' ').str.extract('(From )(.+?)(.+to )(.)')[[1, 3]] + 'M'
-    df_reclass_source['Change Date'] = pd.to_datetime(df_reclass_source['DATE*'], format = '%B %Y') + pd.DateOffset(months = 1)
+    df_reclass_source['Change Date'] = pd.to_datetime(df_reclass_source['DATE*'], format = '%B %Y') + pd.DateOffset(months = 1) - pd.DateOffset(days = 1)
     df_reclass = df_reclass_source.loc[ : , 'Country' : 'Change Date']
     df_reclass['Country'] = df_reclass['Country'].str.replace(r'&', 'AND')
     
@@ -378,18 +378,17 @@ def hh_save_msci_subtractions(df_returns, window_size, size_measure, result_file
         # Perforoming mean subtraction
         try:
             ser_country_returns_subtracted = hh_rolling_mean_subtraction(df_returns.loc[returns_code].squeeze(), 
-                                                                         window_size, size_measure)
+                                                                         returns_freq, window_size, size_measure)
             arr_country_index.append(returns_code)
             arr_country_container.append(ser_country_returns_subtracted)
         # Checking for having enough data for each country
         except ValueError:
-            print('Date period for country code', returns_code, 'is shorter then rolling window length')
-        # Aggregating results to common data vector
-        finally:
-            ser_returns_mean_subtracted = pd.concat(arr_country_container, axis = 0, keys = arr_country_index, 
-                                                    names = ['Country_Code', 'Value_Date', 'Rolling_Date'], copy = False)  
+            print('hh_save_msci_subtractions: Date period for country code', returns_code, 'is shorter then minimal rolling window length')
+    # Aggregating results to common data vector
+    ser_returns_mean_subtracted = pd.concat(arr_country_container, axis = 0, keys = arr_country_index, 
+                                            names = ['Country_Code', 'Value_Date', 'Rolling_Date'], copy = False)  
     # Saving result to HDF5
     ser_returns_mean_subtracted.to_hdf(result_file_path, key = result_object_name, mode = 'r+', format = 'table', append = False)
     
-    print('hh_save_msci_subtractions: mean subtraction for MSCI countries performed and saved to:', result_file_path, 'with key:', result_object_name)          
+    print('hh_save_msci_subtractions: average subtraction for MSCI countries performed and saved to:', result_file_path, 'with key:', result_object_name)          
     return result_object_name

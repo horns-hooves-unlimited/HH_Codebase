@@ -209,12 +209,12 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
                 # Standartizing asset if they do not have enough initial values
                 if (int_asset_filled < int_base_filled * double_base_allowed_part):
                     df_asset_start_index = ser_asset_z_score_simple.index.get_loc(ser_asset_z_score_simple.first_valid_index())                 
-                    # Renormatizing asset z matrix with base z matrix data
+                    # RenormaLizing asset z matrix with base z matrix data
                     for end_wnd_index in range(df_asset_start_index, min(df_asset_start_index + MRI_max_wnd, ser_asset_z_score_simple.size)):
                         ser_base_z_matrix_part = df_base_z_matrix.iloc[max(0, df_asset_start_index - MRI_min_wnd + 1) : end_wnd_index + 1, end_wnd_index]
                         df_asset_z_matrix.iloc[:, end_wnd_index] = df_asset_z_matrix.iloc[:, end_wnd_index] * ser_base_z_matrix_part.std()  + ser_base_z_matrix_part.mean()
                         
-                # Defining of standartized values of asset as diagonal of modified z matrix (without backfilling)
+                # Defining of standartized values of asset as diagonale of modified z matrix (without backfilling)
                 arr_asset_vector_container.append(pd.Series(np.copy(np.diag(df_asset_z_matrix)), index = df_asset_z_matrix.index))            
                 # Adding asset matrix to a whole group dataset with multiplying asset matrix to asset weight          
                 arr_asset_matrix_container.append(df_asset_z_matrix * df_model_asset.at[asset_index, 'Factor Weights'])  

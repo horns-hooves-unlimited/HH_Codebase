@@ -319,7 +319,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     return [df_z_score_res, df_z_matrix]
 
 
-def hh_rolling_mean_subtraction(ser_source, window_size, size_measure, show_report = False):
+def hh_rolling_mean_subtraction(ser_source, source_interval, window_size, size_measure, show_report = False):
     """
     Version 0.01 2019-05-03
     
@@ -329,11 +329,14 @@ def hh_rolling_mean_subtraction(ser_source, window_size, size_measure, show_repo
       ser_mean_subtracted (pd.Series) - resulting data vector for each date point
     INPUT:
       ser_source (pd.Series) - source data vector
+      source_interval (string) - distance between source index dates:
+        'daily' - for day offset;
+        'monthly' - for month offset;     
       window_size (integer) - size of rolling back window to subtract mean and form data vector
       size_measure (string) - measure of window size: 
-        'days' - for days offset;
-        'months' - for months offset;
-        'years' - for years offset; 
+        'days' - for offset in days;      
+        'months' - for offset in months;
+        'years' - for offset in years; 
       show_report (boolean) - flag of showing function resulting report: 
         False (default) - not to show;
         True - to show;           
@@ -341,31 +344,83 @@ def hh_rolling_mean_subtraction(ser_source, window_size, size_measure, show_repo
     
     import pandas as pd        
     import datetime
-    
-    # Creating offset for rolling back window
-    offset_day = pd.DateOffset(days = 1)    
-    if (size_measure == 'days'):
-        offset_window = pd.DateOffset(days = window_size)
-    if (size_measure == 'months'):
-        offset_window = pd.DateOffset(months = window_size)
-    if (size_measure == 'years'):
-        offset_window = pd.DateOffset(years = window_size)                
+
     # Making a copy of data table for further manipulations
     ser_managed = ser_source.copy()
+    ser_managed.dropna(inplace = True)    
     # Preparing for iterating
-    ser_managed.dropna(inplace = True)
-    date_ser_min = ser_managed.index[0]
     arr_ser_container = []
     arr_date_container = []
-    # Iterating source data vector    
-    for date_ser_iter, num_ser_iter in ser_managed.iteritems():
-        if (date_ser_iter >= date_ser_min + offset_window):
-            # Selecting window to subtract mean and subtracting
-            ser_to_subtract = ser_managed[(date_ser_iter - offset_window + offset_day) : date_ser_iter]
-            ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
-            # Adding new element to data container
-            arr_date_container.append(date_ser_iter)            
-            arr_ser_container.append(ser_subtracted)
+    window_size_min = window_size // 2
+    date_ser_first = ser_managed.index[0]
+    # Minimal index determination
+    if (source_interval == 'monthly'):
+        if (size_measure == 'years'):
+            date_ser_min = date_ser_first + pd.offsets.BYearEnd(window_size_min, month = ser_managed.index[0].month) - pd.offsets.BMonthEnd(1)               
+    if (source_interval == 'monthly'):
+        if (size_measure == 'months'):
+            date_ser_min = date_ser_first + pd.offsets.BMonthEnd(window_size_min - 1)
+    if (source_interval == 'daily'):
+        if (size_measure == 'years'):
+            date_ser_min = date_ser_first + pd.DateOffset(years = window_size_min) - pd.DateOffset(days = 1)  
+    if (source_interval == 'daily'):
+        if (size_measure == 'months'):
+            date_ser_min = date_ser_first + pd.DateOffset(months = window_size_min) - pd.DateOffset(days = 1)   
+    if (source_interval == 'daily'):
+        if (size_measure == 'days'):
+            date_ser_min = date_ser_first + pd.DateOffset(days = window_size_min - 1)
+    # Iterating source data vector 
+    if (source_interval == 'monthly'):
+        if (size_measure == 'years'):  
+            for date_ser_iter, num_ser_iter in ser_managed.iteritems():
+                if (date_ser_iter >= date_ser_min):
+                    # Selecting window to subtract mean and subtracting
+                    ser_to_subtract = ser_managed[min(date_ser_first,
+                                                      date_ser_iter - pd.offsets.BYearEnd(window_size, month = date_ser_iter.month) + pd.offsets.BMonthEnd(1)) : date_ser_iter]
+                    ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
+                    # Adding new element to data container
+                    arr_date_container.append(date_ser_iter)            
+                    arr_ser_container.append(ser_subtracted)
+    if (source_interval == 'monthly'):
+        if (size_measure == 'months'):  
+            for date_ser_iter, num_ser_iter in ser_managed.iteritems():
+                if (date_ser_iter >= date_ser_min):
+                    # Selecting window to subtract mean and subtracting
+                    ser_to_subtract = ser_managed[(date_ser_iter - pd.offsets.BMonthEnd(window_size - 1)) : date_ser_iter]
+                    ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
+                    # Adding new element to data container
+                    arr_date_container.append(date_ser_iter)            
+                    arr_ser_container.append(ser_subtracted)    
+    if (source_interval == 'daily'):
+        if (size_measure == 'years'):  
+            for date_ser_iter, num_ser_iter in ser_managed.iteritems():
+                if (date_ser_iter >= date_ser_min):
+                    # Selecting window to subtract mean and subtracting
+                    ser_to_subtract = ser_managed[(date_ser_iter - pd.DateOffset(years = window_size) + pd.DateOffset(days = 1)) : date_ser_iter]
+                    ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
+                    # Adding new element to data container
+                    arr_date_container.append(date_ser_iter)            
+                    arr_ser_container.append(ser_subtracted)
+    if (source_interval == 'daily'):
+        if (size_measure == 'months'):  
+            for date_ser_iter, num_ser_iter in ser_managed.iteritems():
+                if (date_ser_iter >= date_ser_min):
+                    # Selecting window to subtract mean and subtracting
+                    ser_to_subtract = ser_managed[(date_ser_iter - pd.DateOffset(months = window_size) + pd.DateOffset(days = 1)) : date_ser_iter]
+                    ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
+                    # Adding new element to data container
+                    arr_date_container.append(date_ser_iter)            
+                    arr_ser_container.append(ser_subtracted)   
+    if (source_interval == 'daily'):
+        if (size_measure == 'days'):  
+            for date_ser_iter, num_ser_iter in ser_managed.iteritems():
+                if (date_ser_iter >= date_ser_min):
+                    # Selecting window to subtract mean and subtracting
+                    ser_to_subtract = ser_managed[(date_ser_iter - pd.DateOffset(days = window_size - 1)) : date_ser_iter]
+                    ser_subtracted = ser_to_subtract - ser_to_subtract.mean()
+                    # Adding new element to data container
+                    arr_date_container.append(date_ser_iter)            
+                    arr_ser_container.append(ser_subtracted)                     
     # Creating resulting data vector
     ser_mean_subtracted = pd.concat(arr_ser_container, axis = 0, keys = arr_date_container, names = ['Value Date', 'Rolling Date'], copy = False)   
     
