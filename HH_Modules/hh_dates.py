@@ -1,4 +1,4 @@
-# THIS LIBRARY CONTAINS GENERAL PURPOSES DATES MANIPULATING FUNCTIONS
+### THIS LIBRARY CONTAINS GENERAL PURPOSES DATES MANIPULATING FUNCTIONS
 
 def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_date = '2018-12-31', interval = 'day'):
     """
@@ -20,22 +20,20 @@ def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_dat
         'year' = year ends
     """
 
-    import pandas as pd # For date_range functionality
-    from datetime import date # For date/string converting functionality
+    import pandas as pd ### For date_range functionality
+    from datetime import date ### For date/string converting functionality
     
-    date_format = '%Y-%m-%d'
-    
-    # Converting dates to common string format in case of date formatting
+    date_format = '%Y-%m-%d'    
+    ### Converting dates to common string format in case of date formatting:
     if date_type == 'string': 
         range_begin_date = begin_date
         range_end_date = end_date
     else:
         range_begin_date = begin_date.strftime(date_format)
-        range_end_date = end_date.strftime(date_format)        
-        
-    # Interpretating interval parameter    
+        range_end_date = end_date.strftime(date_format)                
+    ### Interpretating interval parameter:
     bus_freq_dict = {'day': 'B', 'week': 'W-FRI', 'month': 'BM', 'quarter': 'BQ-DEC', 'year': 'BA-DEC'} 
-    # Extracting business dates
+    ### Extracting business dates:
     bus_index = pd.date_range(range_begin_date, range_end_date, freq = bus_freq_dict[interval]) 
     
     print('hh_create_bus_dates: Business dates index for period from',  begin_date, 'to', end_date, 'with', interval, 'interval successfully generated')
@@ -57,23 +55,20 @@ def hh_drop_nyse_closures(date_index):
       pip install pandas_market_calendars
     """
 
-    import pandas as pd # For Timeseries
-    from datetime import date # For date/string converting functionality    
-    import pandas_market_calendars as mcal # For NYSE Closures
+    import pandas as pd ### For Timeseries
+    from datetime import date ### For date/string converting functionality    
+    import pandas_market_calendars as mcal ### For NYSE Closures
     
-    date_format = '%Y-%m-%d'
-    
-    # Extracting border dates from date_index list
+    date_format = '%Y-%m-%d'    
+    ### Extracting border dates from date_index list:
     first_date = date_index[0].strftime(date_format) 
-    last_date = date_index[date_index.size - 1].strftime(date_format)
-    
-    # Creating NYSE workdays list
+    last_date = date_index[date_index.size - 1].strftime(date_format)    
+    ### Creating NYSE workdays list:
     nyse_calendar = mcal.get_calendar('NYSE') 
-    nyse_valid_days = nyse_calendar.valid_days(first_date, last_date)
-    
-    # Creating temp timeseries for filtering
+    nyse_valid_days = nyse_calendar.valid_days(first_date, last_date)    
+    ### Creating temp timeseries for filtering:
     ser_temp = pd.Series(0, index = date_index) 
-    # Performing filtering
+    ### Performing filtering:
     nyse_index = ser_temp[nyse_valid_days].index 
     
     print('hh_drop_nyse_closures: NYSE closure dates successfully dropped from date index')
