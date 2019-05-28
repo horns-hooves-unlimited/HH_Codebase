@@ -471,6 +471,7 @@ def hh_bokeh_mri_data(df_model_asset, df_model_MRI, asset_hdf_path, group_hdf_pa
     import numpy as np
     import pandas as pd
     from datetime import datetime 
+    from bokeh.layouts import widgetbox
     from bokeh.layouts import column as b_col
     import bokeh.models as b_md    
     from bokeh.palettes import Set2, Set3
@@ -630,6 +631,7 @@ def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
     from bokeh.palettes import Set2, Set3
     import bokeh.plotting as b_pl
     import bokeh.models as b_md
+    from bokeh.layouts import widgetbox    
     from bokeh.layouts import row as b_row
     from bokeh.layouts import column as b_col
     from bokeh.transform import factor_cmap
@@ -671,7 +673,7 @@ def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
     fig_history.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
                                          formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
         
-    return b_col(range_slider_period, fig_history)
+    return b_col(widgetbox(range_slider_period), fig_history)
 
 
 def hh_bokeh_compare_universe_data(df_compare, figure_size, figure_title):
@@ -696,6 +698,7 @@ def hh_bokeh_compare_universe_data(df_compare, figure_size, figure_title):
     from bokeh.palettes import Set2, Set3
     import bokeh.plotting as b_pl
     import bokeh.models as b_md
+    from bokeh.layouts import widgetbox    
     from bokeh.layouts import row as b_row
     from bokeh.layouts import column as b_col
     from bokeh.transform import factor_cmap
@@ -738,7 +741,7 @@ def hh_bokeh_compare_universe_data(df_compare, figure_size, figure_title):
     fig_compare.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
                                          formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
         
-    return b_col(range_slider_period, fig_compare)
+    return b_col(widgetbox(range_slider_period), fig_compare)
 
 def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_pivot, figure_size, figure_title):
     """
@@ -767,6 +770,7 @@ def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_p
     from bokeh.palettes import Set2, Set3
     import bokeh.plotting as b_pl
     import bokeh.models as b_md
+    from bokeh.layouts import widgetbox    
     from bokeh.layouts import row as b_row
     from bokeh.layouts import column as b_col
     from bokeh.layouts import widgetbox
@@ -902,12 +906,12 @@ def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_p
                                      """)
     radio_order = RadioGroup(labels = arr_labels, active = 0, callback = radio_callback)
 
-    return b_col(radio_order, select_country, fig_returns, range_slider_period)
+    return b_col(widgetbox(radio_order), widgetbox(select_country), fig_returns, widgetbox(range_slider_period))
 
 
-def hh_msci_mri_regression(window_length, half_life_period, weights_distribution, MRI_hdf_path, MRI_key, MSCI_returns_path, MSCI_returns_key):
+def hh_msci_mri_regression(window_length, half_life_period, weights_distribution, MRI_delta_way, MRI_hdf_path, MRI_key, MSCI_returns_path, MSCI_returns_key):
     """
-    Version 0.01 2019-05-17
+    Version 0.04 2019-05-23
     
     FUNCTIONALITY: 
       1) Creating weights vector for WLS performing
@@ -918,11 +922,14 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
       df_wls_results (pd.DataFrame) - results of WLS performing for each attested country/date pair
     INPUT:
       window_length (integer) - maximal length of rolling back window to select data vector (in years)
-      half_life_period (integer) - period of weight downcome to 1/2 before normalising (in months)
+      half_life_period (integer) - period of weight downcome to 1/2 before normalising (in months)    
       weights_distribution (string) - way of tuning weights for WLS:
         'none' - OLS or equal weights for all residual squares;
         'by_date' - descending order from point date down to window_length earlier;
         'by_value' - descending order depending on similarity (absolute difference) to date point value for regressor (MRI);        
+      MRI_delta_way (string) - way of taking monthly delta for regressor:
+        'point' - delta of end-of-month values;
+        'mean' - delta of monthly means;         
       MRI_hdf_path (string) - path to the MRI released HDF5 file
       MRI_key (string) - data object key to access MRI values from HDF5 file
       MSCI_returns_path (string) - path to the MSCI returns HDF5 file
@@ -955,17 +962,26 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
     ts_weights = ts_weights / ts_weights.sum()       
     ### Preparing data for regressions calculation:
     ser_MRI_main = pd.read_hdf(MRI_hdf_path, MRI_key)
-    df_returns = pd.read_hdf(MSCI_returns_path, MSCI_returns_key)
     ### MRI adopting for monthly returns format:
-    ser_MRI_monthly_mean = ser_MRI_main.groupby(pd.Grouper(freq = 'BM')).mean()
-    ser_MRI_monthly_delta = (ser_MRI_monthly_mean - ser_MRI_monthly_mean.shift(1))
+    ser_MRI_monthly_mean = ser_MRI_main.groupby(pd.Grouper(freq = 'BM')).mean()    
+    ser_MRI_monthly_point = ser_MRI_main.groupby(pd.Grouper(freq = 'BM')).last()    
+    if (MRI_delta_way == 'mean'):
+        ser_MRI_monthly_delta = (ser_MRI_monthly_mean - ser_MRI_monthly_mean.shift(1))
+    if (MRI_delta_way == 'point'):
+        ser_MRI_monthly_delta = (ser_MRI_monthly_point - ser_MRI_monthly_point.shift(1))        
     ### Preparing MSCI data for looping:
+    df_returns = pd.read_hdf(MSCI_returns_path, MSCI_returns_key)    
     df_returns.reset_index(level = 'Country', drop = True, inplace = True)
     df_returns.drop('INDEX', level = 'Code', inplace = True)
     df_returns = df_returns.swaplevel()
-    df_returns = np.log(1 + df_returns)
     df_returns.sort_index(level = [0, 1], inplace = True)
-    ser_returns = df_returns.squeeze()    
+    ser_returns = df_returns.squeeze()   
+    ### From based 100 returns to month-to-month returns
+    for country_iter in ser_returns.index.get_level_values(level = 0).unique():
+        ser_returns[country_iter] = (ser_returns[country_iter] / ser_returns[country_iter].shift(1) - 1)
+    ser_returns.fillna(0, inplace = True)
+    ### Flattening MSCI changes by logarythm
+    ser_returns = np.log(1 + ser_returns)       
     ### Regression loop performing:
     arr_index_container = []
     arr_results_container = []
@@ -978,6 +994,7 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
         ### Centralising returns data vector:
         ser_returns_iter = ser_returns_iter - ser_returns_iter.mean()
         ### Extacting MRI data vector for current date point:
+        ser_MRI_values_iter = ser_MRI_monthly_mean[(date_iter - pd.offsets.BMonthEnd(num_regression_length * 12 - 1)) : date_iter].dropna()
         ser_MRI_iter = ser_MRI_monthly_delta[(date_iter - pd.offsets.BMonthEnd(num_regression_length * 12 - 1)) : date_iter].dropna()
         ### Centralising MRI data vector        
         ser_MRI_iter = ser_MRI_iter - ser_MRI_iter.mean()
@@ -994,9 +1011,9 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
                 ser_weights = pd.Series(ts_weights.values, index = pd.date_range(end = date_iter, periods = (num_regression_length * 12), freq = 'BM'))
             if (weights_distribution == 'by_value'):       
                 ser_weights = pd.Series(ts_weights.values, index = pd.date_range(end = date_iter, periods = (num_regression_length * 12), freq = 'BM'))
-                index_weights = ser_MRI_iter.index.intersection(ser_weights.index)  
+                index_weights = ser_MRI_values_iter.index.intersection(ser_weights.index)  
                 ser_weights = ser_weights[index_weights]
-                ser_distribution = ser_MRI_iter.copy()
+                ser_distribution = ser_MRI_values_iter.copy()
                 ser_distribution = abs(ser_distribution - ser_distribution.iloc[-1])
                 ser_distribution.sort_values(ascending = False, inplace = True)
                 df_distribution = ser_distribution.to_frame('From_Last')
@@ -1004,12 +1021,12 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
                 df_distribution.drop(columns = ['From_Last'], axis = 1, inplace = True)
                 ser_distribution = df_distribution.squeeze()
                 ser_weights = ser_distribution.sort_index()          
-            ### Regression perfrorming:
+            ### Regression performing:
             wls_y = ser_returns_iter[index_iter].values
             wls_x = ser_MRI_iter[index_iter].values
             wls_x = sm.add_constant(wls_x)
             wls_w = ser_weights[index_iter].values        
-            wls_model = sm.WLS(wls_y, wls_x, weights = np.sqrt(wls_w))
+            wls_model = sm.WLS(wls_y, wls_x, weights = wls_w)            
             wls_results = wls_model.fit()
             arr_results_container.append(np.concatenate((wls_results.params, wls_results.tvalues, [wls_results.rsquared, wls_results.rsquared_adj])))      
             arr_index_container.append((str_country_iter, date_iter))
@@ -1021,6 +1038,127 @@ def hh_msci_mri_regression(window_length, half_life_period, weights_distribution
     
     print('hh_msci_mri_regression:', counter_points, 'MSCI monthly returns country/date points taken for regression on MRI.')     
     print('hh_msci_mri_regression:', counter_regressions, 'MSCI on MRI correct intersections choosed for regression performing')
-    print('hh_msci_mri_regression: MSCI on MRI regression with weights distribution option "', weights_distribution, '" performed successfully.')
+    print('hh_msci_mri_regression: MSCI on MRI regression with weights distribution option "', weights_distribution, 
+          '" and regressor monthly delta way "', MRI_delta_way,'" performed successfully.')
     
     return df_wls_results
+
+
+def hh_msci_expvol(window_length, half_life_period, weights_distribution, MRI_hdf_path, MRI_key, MSCI_returns_path, MSCI_returns_key):
+    """
+    Version 0.02 2019-05-23
+    
+    FUNCTIONALITY: 
+      1) Creating weights vector for WLS performing
+      2) Choosing rollback data vectors for each country/date pair
+      3) Checking returns data vectors for enough intersection with corresponding MRI rollback data vector
+      4) Calculating exponential volatility for country/date pairs
+    OUTPUT:
+      df_wls_results (pd.DataFrame) - results of WLS performing for each attested country/date pair
+    INPUT:
+      window_length (integer) - maximal length of rolling back window to select data vector (in years)
+      half_life_period (integer) - period of weight downcome to 1/2 before normalising (in months)    
+      weights_distribution (string) - way of tuning weights for WLS:
+        'none' - OLS or equal weights for all residual squares;
+        'by_date' - descending order from point date down to window_length earlier;
+        'by_value' - descending order depending on similarity (absolute difference) to date point value for regressor (MRI);               
+      MRI_hdf_path (string) - path to the MRI released HDF5 file
+      MRI_key (string) - data object key to access MRI values from HDF5 file
+      MSCI_returns_path (string) - path to the MSCI returns HDF5 file
+      MSCI_returns_key (string) - data object key to accessMSCI USD monthly returns from HDF5 file
+    """    
+    import numpy as np
+    import pandas as pd    
+    import math   
+    import statsmodels.api as sm    
+    ### Expanding visibility zone for Python engine to make HH Modules seen:
+    import sys 
+    sys.path.append('../..')    
+    
+    ### Defining period weights for future regressions:
+    num_year_work_days = 252
+    num_year_months = 12
+    ### Array of half-life periods (in months):
+    arr_half_life_periods = [1, 2, 3, 6, 12, 24]
+    ### Regression window (in years):
+    num_regression_length = window_length
+    ### Array of regressioon window day numbers descending:
+    arr_weight_days = np.arange(num_year_work_days * num_regression_length, 0, -1) - 1
+    ### Dictionary of weight arrays for each half-life period:
+    dict_weights_daily = {}
+    for month_period in arr_half_life_periods:
+        num_period_factor = math.exp(math.log(0.5) / round((num_year_work_days / num_year_months * month_period)))
+        dict_weights_daily[month_period] = np.exp(math.log(num_period_factor) * arr_weight_days)
+    ### Weights adopting for monthly returns format:
+    ts_weights = pd.Series(dict_weights_daily[half_life_period][:: -21][::-1])
+    ts_weights = ts_weights / ts_weights.sum()       
+    ### Preparing data for regressions calculation:
+    ser_MRI_main = pd.read_hdf(MRI_hdf_path, MRI_key)
+    ### MRI adopting for monthly returns format:
+    ser_MRI_monthly_mean = ser_MRI_main.groupby(pd.Grouper(freq = 'BM')).mean()          
+    ### Preparing MSCI data for looping:
+    df_returns = pd.read_hdf(MSCI_returns_path, MSCI_returns_key)    
+    df_returns.reset_index(level = 'Country', drop = True, inplace = True)
+    df_returns.drop('INDEX', level = 'Code', inplace = True)
+    df_returns = df_returns.swaplevel()
+    df_returns.sort_index(level = [0, 1], inplace = True)
+    ser_returns = df_returns.squeeze()   
+    ### From based 100 returns to month-to-month returns
+    for country_iter in ser_returns.index.get_level_values(level = 0).unique():
+        ser_returns[country_iter] = (ser_returns[country_iter] / ser_returns[country_iter].shift(1) - 1)
+    ser_returns.fillna(0, inplace = True)
+    ### Flattening MSCI changes by logarythm
+    ser_returns = np.log(1 + ser_returns)    
+    ### Regression loop performing:
+    arr_index_container = []
+    arr_results_container = []
+    counter_points = 0
+    counter_regressions = 0
+    for (str_country_iter, date_iter) in ser_returns.index:
+        counter_points = counter_points + 1
+        ### Extracting returns data vector for each country/date point:
+        ser_returns_iter = ser_returns[str_country_iter][(date_iter - pd.offsets.BMonthEnd(num_regression_length * 12 - 1)) : date_iter].dropna()
+        ### Centralising returns data vector:
+        ser_returns_iter = ser_returns_iter - ser_returns_iter.mean()
+        ### Extacting MRI data vector for current date point:
+        ser_MRI_values_iter = ser_MRI_monthly_mean[(date_iter - pd.offsets.BMonthEnd(num_regression_length * 12 - 1)) : date_iter].dropna()
+        ### Intersecting MSCI and MRI indexes to select common part:
+        index_iter = ser_MRI_values_iter.index.intersection(ser_returns_iter.index)
+        ### Checking of enough data values to perform regression for current country/date point
+        if (index_iter.size >= num_regression_length * 12 // 2):            
+            counter_regressions = counter_regressions + 1
+            ### Attaching weights vector to current date point:
+            if (weights_distribution == 'none'):
+                ser_weights = pd.Series((np.ones(num_regression_length * 12) / (num_regression_length * 12)), 
+                                        index = pd.date_range(end = date_iter, periods = (num_regression_length * 12), freq = 'BM'))
+            if (weights_distribution == 'by_date'):
+                ser_weights = pd.Series(ts_weights.values, index = pd.date_range(end = date_iter, periods = (num_regression_length * 12), freq = 'BM'))
+            if (weights_distribution == 'by_value'):       
+                ser_weights = pd.Series(ts_weights.values, index = pd.date_range(end = date_iter, periods = (num_regression_length * 12), freq = 'BM'))
+                index_weights = ser_MRI_values_iter.index.intersection(ser_weights.index)  
+                ser_weights = ser_weights[index_weights]
+                ser_distribution = ser_MRI_values_iter.copy()
+                ser_distribution = abs(ser_distribution - ser_distribution.iloc[-1])
+                ser_distribution.sort_values(ascending = False, inplace = True)
+                df_distribution = ser_distribution.to_frame('From_Last')
+                df_distribution['Weights'] = ser_weights.values
+                df_distribution.drop(columns = ['From_Last'], axis = 1, inplace = True)
+                ser_distribution = df_distribution.squeeze()
+                ser_weights = ser_distribution.sort_index()          
+            ### Exponential volatility calculating:
+            expvol_y = ser_returns_iter[index_iter]
+            expvol_w = ser_weights[index_iter]             
+            expvol_w = expvol_w / expvol_w.sum()
+            expvol_results = np.sqrt(expvol_w.dot(expvol_y * expvol_y)) * np.sqrt(num_year_months)
+            arr_results_container.append(expvol_results)      
+            arr_index_container.append((str_country_iter, date_iter))
+    ### Results index creating:
+    index_wls_results = pd.MultiIndex.from_tuples(arr_index_container, names = ('Country', 'DatePoint'))
+    ### Results aggregating:
+    ser_expvol_results = pd.Series(arr_results_container, index = index_wls_results)
+    
+    print('hh_msci_expvol:', counter_points, 'MSCI monthly returns country/date points taken.')     
+    print('hh_msci_expvol:', counter_regressions, 'MSCI on MRI correct intersections choosed')
+    print('hh_msci_expvol: MSCI exponential volatility with weights distribution option "', weights_distribution, '" calculated successfully.')
+    
+    return ser_expvol_results

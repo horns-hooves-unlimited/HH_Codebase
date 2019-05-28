@@ -139,7 +139,7 @@ def hh_get_msci_reclassification(source_file_path):
     return df_reclass    
 
 
-def hh_get_msci_returns(source_dir_path, str_part_to_replace):
+def hh_get_msci_returns(source_dir_path, str_part_to_replace, dict_to_rename_countries):
     """
     Version 0.02 2019-04-23
     
@@ -151,7 +151,8 @@ def hh_get_msci_returns(source_dir_path, str_part_to_replace):
       df_returns (pd.DataFrame) - set of returns by date and country/index
     INPUT:
       source_dir_path (string) - path to the directory with source data files
-      str_part_to_replace (string) - part of column names to clear country name (usinng as str_part_to_replace + '.+')      
+      str_part_to_replace (string) - part of column names to clear country name (usinng as str_part_to_replace + '.+')  
+      dict_to_rename_countries (string) - dictionary of MSCI country names changing for compatibility with universal country codes
     """
     
     import pandas as pd
@@ -171,6 +172,7 @@ def hh_get_msci_returns(source_dir_path, str_part_to_replace):
             arr_from_file.append(df_from_file)
     df_returns = pd.concat(arr_from_file, axis = 1, join = 'outer')
     df_returns.columns.name = 'Country'
+    df_returns.rename({'KOREA': 'SOUTH KOREA', 'USA': 'UNITED STATES'}, axis = 1, inplace  = True)
     
     print('hh_get_msci_returns: Information about MSCI returns from', source_dir_path, 'successfully consolidated to DataFrame')    
     return df_returns
