@@ -672,7 +672,7 @@ def hh_bokeh_markets_universe_data(df_history, figure_size, figure_title):
     fig_history.legend.click_policy = 'mute'
     fig_history.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
                                          formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
-        
+    fig_history.toolbar.autohide = True         
     return b_col(widgetbox(range_slider_period), fig_history)
 
 
@@ -740,7 +740,8 @@ def hh_bokeh_compare_universe_data(df_compare, figure_size, figure_title):
     fig_compare.legend.click_policy = 'mute'
     fig_compare.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country'), ('([ , ])', '(@{Start Date}{%F}, @{End Date}{%F})'), ('MSCI Index', '@{Index Name}')],
                                          formatters = {'Start Date': 'datetime', 'End Date': 'datetime'}))
-        
+    fig_compare.toolbar.autohide = True  
+    
     return b_col(widgetbox(range_slider_period), fig_compare)
 
 def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_pivot, figure_size, figure_title):
@@ -819,6 +820,7 @@ def hh_bokeh_MSCI_country_returns(df_current, df_history, df_USD_pivot, df_LOC_p
     ### Configuring output:
     fig_returns.legend.location = 'top_left' 
     fig_returns.add_tools(b_md.HoverTool(tooltips = [('Value', '@YY{0,0.00}'), ('Date', '@Date{%F}')], formatters = {'Date': 'datetime', 'YY': 'numeral'})) 
+    fig_returns.toolbar.autohide = True    
     ### Constant maximum quantity of reclassificationsa for one country:
     num_annotations = 5
     ### Creating array of blank annotations:
@@ -1162,3 +1164,1119 @@ def hh_msci_expvol(window_length, half_life_period, weights_distribution, MRI_hd
     print('hh_msci_expvol: MSCI exponential volatility with weights distribution option "', weights_distribution, '" calculated successfully.')
     
     return ser_expvol_results
+
+
+def hh_bokeh_MSCI_membership_map(path_countries_map_shp, df_expvol_all, df_country_codes, df_history_membership, figure_size, figure_title):
+    """
+    Version 0.01 2019-05-30
+    
+    FUNCTIONALITY:
+      Drawing world map for illustrating MSCI membership evolution
+    OUTPUT:
+      bokeh.layouts.column that consists of:
+          fig_world_map (bokeh.plotting.figure) - figure to display
+          slider_dates (bokeh.models.widgets.DateSlider) - slider to date choosing for showing crossectional MSCI membership
+    INPUT:
+      path_countries_map_shp (string) - path to loacl file with world countries geo data
+      df_expvol_all (pd.DataFrame) - resulats of MSCI on MRI exponential volatility
+      df_country_codes (pd.DataFrame) - table of country codes
+      df_history_membership (pd.DataFrame) - history of moving countries within classes     
+      figure_size (tuple) - figure shapes
+      figure_title (string) - figure title
+    """
+
+    import numpy as np
+    import pandas as pd
+    import geopandas as gpd
+    from shapely.geometry import MultiPolygon, Polygon
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md    
+    from bokeh.palettes import Set2, Set3
+    from bokeh.layouts import widgetbox
+    from bokeh.layouts import column as b_col
+    from bokeh.models.widgets import DateSlider
+    from dateutil.relativedelta import relativedelta
+    from bokeh.models import CustomJS
+    
+    ### Integrating classes average to expvol data table
+    df_history_membership.drop('Country', axis = 1, inplace = True)
+    for member_code, (date_start, date_end, class_name) in df_history_membership.iterrows():
+        index_iter_full = pd.date_range(start = date_start, end = date_end, freq = 'BM')
+        if (index_iter_full.size > 0):
+            if (df_expvol_all.index.isin([member_code], level = 0).sum() > 0):
+                index_iter_returns = df_expvol_all.loc[member_code].index.intersection(index_iter_full)
+                df_expvol_all.loc[(member_code, index_iter_returns), 'Class'] = class_name 
+    df_expvol_all = df_expvol_all.reset_index()       
+    df_expvol_all.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    df_expvol_class = df_expvol_all.copy()
+    df_expvol_class = df_expvol_class.groupby(['Class', 'DatePoint']).mean()
+    df_expvol_class = df_expvol_class.reset_index()
+    df_expvol_class['Country'] = df_expvol_class['Class'] + ' - Average'
+    df_expvol_class.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    df_expvol_all = pd.concat([df_expvol_all, df_expvol_class])
+    df_expvol_all.sort_index(axis = 0, level = [0, 1], inplace = True)
+    df_expvol_all = df_expvol_all.reset_index('DatePoint')
+    ### Integrating long codes to expvol data table:
+    df_expvol_long = df_expvol_all.reset_index()
+    df_expvol_long = df_expvol_long.merge(df_country_codes, how = 'left', left_on = 'Country', right_on = 'ISO SHORT')
+    df_expvol_long.drop(['ISO SHORT'], axis = 1, inplace = True)
+    df_expvol_long.rename(columns = {'Country': 'Code_Short', 'ISO LONG': 'Code_Long'}, inplace = True)
+    df_expvol_long['Code_Long'].fillna('CLASS', inplace = True)
+    df_expvol_long.set_index(['DatePoint', 'Class', 'Code_Long', 'Code_Short'], inplace = True)
+    df_expvol_long.sort_index(axis = 0, level = ['DatePoint', 'Class', 'Code_Long'], inplace = True)
+    ### Exporting geo data:
+    file_countries_gdf = gpd.read_file(path_countries_map_shp)[['ADMIN', 'ADM0_A3', 'geometry']]
+    file_countries_gdf.columns = ['Country_Name', 'Country_Long_Code', 'Country_Geometry']
+    file_countries_gdf.sort_values('Country_Long_Code', inplace = True)
+    file_countries_gdf.drop(file_countries_gdf[file_countries_gdf['Country_Name'] == 'Antarctica'].index, axis = 0, inplace = True)
+    ### Converting polygons to coordinates arrays dataframe for bokech patches:
+    arr_names = []
+    arr_codes = []
+    arr_arr_x = []
+    arr_arr_y = []
+    for country_counter, (country_name, country_long_code, country_geometry) in file_countries_gdf.iterrows():
+        if isinstance(country_geometry,  MultiPolygon):
+            for country_polygon in country_geometry:
+                arr_names.append(country_name)            
+                arr_codes.append(country_long_code)
+                arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+                arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))             
+        else:
+            country_polygon = country_geometry
+            arr_names.append(country_name)               
+            arr_codes.append(country_long_code)
+            arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+            arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))     
+    tup_country_coords = tuple(zip(arr_names, arr_codes, arr_arr_x, arr_arr_y))
+    df_country_coords = pd.DataFrame(list(tup_country_coords), columns = ['Country_Name', 'Country_Long_Code', 'Coord_X_Array', 'Coord_Y_Array'])
+    df_country_coords.set_index(['Country_Long_Code', 'Country_Name'], inplace = True)    
+    ### Creating data table for class evolution through month/year to further connect with Slider bokeh widget:
+    df_class_evolution = df_expvol_long.reset_index()
+    df_class_evolution = df_class_evolution[['DatePoint', 'Class', 'Code_Long']]
+    df_class_evolution['Year_Month'] = df_class_evolution['DatePoint'].dt.to_period('M')
+    df_class_evolution.drop('DatePoint', axis = 1, inplace = True)
+    df_class_evolution.set_index(['Year_Month'], inplace = True)
+    ### Preparing dictionary of class membership for world map countries on each available year / month:
+    dict_date_classes = {}
+    for iter_index in df_class_evolution.index.unique():
+        df_iter_class = df_class_evolution.loc[iter_index]
+        df_iter_class = df_iter_class.reset_index()
+        df_iter_class.set_index('Code_Long', inplace = True)
+        df_iter_class.drop('Year_Month', axis = 1 ,inplace = True)
+        df_iter_country = df_country_coords.reset_index(level = [1])['Country_Name'].to_frame().merge(df_iter_class, how = 'left', 
+                                                                                                      left_on = 'Country_Long_Code', right_index = True)
+        df_iter_country.drop('Country_Name', axis = 1, inplace = True)
+        dict_date_classes[iter_index.strftime('%Y-%m')] = df_iter_country['Class'].values
+    ### Configuring latest known MSCI classes to future world map data source:
+    df_current_class = df_class_evolution.loc[df_class_evolution.index[-1]]
+    df_current_class = df_current_class.reset_index()
+    df_current_class.set_index('Code_Long', inplace = True)
+    df_current_class.drop('Year_Month', axis = 1 ,inplace = True)
+    df_country_coords_class = df_country_coords.merge(df_current_class, how = 'left', left_on = 'Country_Long_Code', right_index = True) 
+    
+    ### Defining output to notebook or to html file:
+    b_pl.output_notebook()
+    ### Data Source defining
+    src_country_coords =  b_pl.ColumnDataSource(df_country_coords_class.reset_index())
+    ### Colors categorising and mapping:
+    arr_classes_name = list(df_country_coords_class['Class'].sort_values().dropna().unique())[::-1]
+    arr_classes_num = list(list(np.arange(len(arr_classes_name)) + 0.5))
+    arr_classes_str = list(map(str, arr_classes_num))
+    dict_classes_label = dict(zip(arr_classes_str, arr_classes_name))
+    categorical_cm_class = b_md.CategoricalColorMapper(factors = arr_classes_name, palette = Set2[4], nan_color = 'silver')
+    linear_cm_class = b_md.LinearColorMapper(low = 0, high = len(arr_classes_name), palette = Set2[4], nan_color = 'silver')
+    ### Initialising figure:
+    str_fig_toolbar =  'pan, wheel_zoom, reset'
+    tup_fig_size = figure_size
+    str_fig_title = figure_title
+    fig_world_map = b_pl.figure(tools = str_fig_toolbar, active_scroll = 'wheel_zoom', plot_width = tup_fig_size[0], plot_height = tup_fig_size[1], title = str_fig_title)
+    ### Tuning figure:
+    fig_world_map.axis.visible = False
+    fig_world_map.xgrid.visible = False
+    fig_world_map.ygrid.visible = False
+    fig_world_map.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country_Name')]))
+    ### Drawing world map:
+    fig_world_map.patches('Coord_X_Array', 'Coord_Y_Array', source = src_country_coords,
+                          color = {'field': 'Class', 'transform': categorical_cm_class}, fill_alpha = 1.0, line_color = 'lightgray', line_width = 1.0)
+    color_bar_class = b_md.ColorBar(color_mapper = linear_cm_class, label_standoff = 8, width = 20, height = tup_fig_size[1] - 100,
+                                    border_line_color = None, orientation = 'vertical', location = (0, 50),
+                                    ticker = b_md.FixedTicker(ticks = arr_classes_num), major_label_overrides = dict_classes_label,
+                                    title = 'Class colors')
+    fig_world_map.add_layout(color_bar_class, 'right')
+    fig_world_map.toolbar.autohide = True    
+    ### Drawing and tuning slider, creating a trigger for it's changes:
+    callback_slider = CustomJS(args = dict(fig_to_update = fig_world_map, title_main_part = str_fig_title,
+                                           cds_world = src_country_coords, arr_date_classes = dict_date_classes),
+                               code = """
+                                      var date_chosen = new Date(cb_obj.value);
+                                      var arr_months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                                        'July', 'August', 'September', 'October', 'November', 'December'];
+                                      var date_month_name = arr_months[date_chosen.getMonth()]; 
+                                      fig_to_update.title.text = title_main_part + ': ' + date_chosen.getFullYear() + ' / ' + date_month_name;
+                                      var date_year_month = date_chosen.getFullYear().toString()
+                                      if (date_chosen.getMonth() > 8)
+                                      {
+                                          date_year_month = date_year_month + '-' + (date_chosen.getMonth() + 1).toString();
+                                      }
+                                      else
+                                      {
+                                          date_year_month = date_year_month + '-' + '0' + (date_chosen.getMonth() + 1).toString();
+                                      }
+                                      cds_world.data['Class'] = arr_date_classes[date_year_month];
+                                      cds_world.change.emit();                               
+                                      fig_to_update.change.emit();
+                                      """)
+    date_min = df_expvol_long.index.get_level_values(level = 0).min()
+    date_max = df_expvol_long.index.get_level_values(level = 0).max()
+    slider_dates = DateSlider(title = 'Date to show classes membership', width = tup_fig_size[0] - 50, start = date_min, end = date_max, step = 1, value = date_max)
+    slider_dates.js_on_change('value', callback_slider)
+    slider_dates.callback_policy = 'throttle'
+    slider_dates.tooltips = False
+    ### Constructing common layout: 
+    layout_world = b_col(fig_world_map, widgetbox(slider_dates))    
+
+    return layout_world
+
+
+def hh_bokeh_MSCI_MRI_expvol_map(path_countries_map_shp, df_expvol_all, df_country_codes, df_history_membership):
+    """
+    Version 0.01 2019-06-04
+    
+    FUNCTIONALITY:
+      Drawing world map and synchronous plots for illustrating MSCI on MRI exponential volatility
+    OUTPUT:
+      bokeh.layouts.column that consists of:
+      bokeh.layouts.column that consists of: 
+          select_class (bokeh.models.widgets.inputs) - selection of class to show (including all classes)
+          select_weights (bokeh.models.widgets.inputs) - selection the way of MSCI returns weighting to calculate expvol
+      fig_world_map (bokeh.plotting.figure) - world map figure to display
+      slider_dates (bokeh.models.widgets.DateSlider) - slider to date choosing for showing crossectional MSCI membership
+      fig_expvol_plot (bokeh.plotting.figure) - expvol history plot figure to display
+      select_country (bokeh.models.widgets.inputs) - selection country to draw additional expvol history plot
+    INPUT:
+      path_countries_map_shp (string) - path to local file with world countries geo data
+      df_expvol_all (pd.DataFrame) - results of MSCI on MRI exponential volatility
+      df_country_codes (pd.DataFrame) - table of country codes
+      df_history_membership (pd.DataFrame) - history of moving countries within MSCI classes     
+    """
+    
+    import numpy as np
+    import pandas as pd
+    import geopandas as gpd
+    from shapely.geometry import MultiPolygon, Polygon    
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md    
+    from bokeh.palettes import Set2, Set3, RdYlGn, YlOrRd, inferno
+    from bokeh.layouts import widgetbox
+    from bokeh.layouts import column as b_col
+    from bokeh.layouts import row as b_row
+    from bokeh.models.widgets import DateSlider, Select
+    from bokeh.models import CustomJS
+    
+    ### Integrating classes average and common average to expvol data table:
+    for member_code, (date_start, date_end, class_name) in df_history_membership.iterrows():
+        index_iter_full = pd.date_range(start = date_start, end = date_end, freq = 'BM')
+        if (index_iter_full.size > 0):
+            if (df_expvol_all.index.isin([member_code], level = 0).sum() > 0):
+                index_iter_returns = df_expvol_all.loc[member_code].index.intersection(index_iter_full)
+                df_expvol_all.loc[(member_code, index_iter_returns), 'Class'] = class_name 
+    df_expvol_all = df_expvol_all.reset_index()       
+    df_expvol_all.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Constructing class average:
+    df_expvol_class = df_expvol_all.copy()
+    df_expvol_class = df_expvol_class.groupby(['Class', 'DatePoint']).mean()
+    df_expvol_class = df_expvol_class.reset_index()
+    df_expvol_class['Country'] = df_expvol_class['Class'] + ' - Average'
+    df_expvol_class.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Constructing common average:
+    df_expvol_common = df_expvol_all.copy()
+    df_expvol_common = df_expvol_common.groupby(['DatePoint']).mean()
+    df_expvol_common = df_expvol_common.reset_index()
+    df_expvol_common = df_expvol_common.assign(Country = 'ALL - Average', Class = 'ALL')
+    df_expvol_common.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Consolidating extended expvol data table:
+    df_expvol_all = pd.concat([df_expvol_all, df_expvol_class])
+    df_expvol_all = pd.concat([df_expvol_all, df_expvol_common])
+    df_expvol_all.sort_index(axis = 0, level = [0, 1], inplace = True)
+    df_expvol_all = df_expvol_all.reset_index('DatePoint')
+    ### Integrating long codes to expvol data table:
+    df_expvol_long = df_expvol_all.reset_index()
+    df_expvol_long = df_expvol_long.merge(df_country_codes, how = 'left', left_on = 'Country', right_on = 'ISO SHORT')
+    df_expvol_long.drop(['ISO SHORT'], axis = 1, inplace = True)
+    df_expvol_long.rename(columns = {'Country': 'Code_Short', 'ISO LONG': 'Code_Long'}, inplace = True)
+    df_expvol_long['Code_Long'].fillna('CLASS', inplace = True)
+    df_expvol_long.set_index(['DatePoint', 'Class', 'Code_Long', 'Code_Short'], inplace = True)
+    df_expvol_long.sort_index(axis = 0, level = ['DatePoint', 'Class', 'Code_Long'], inplace = True)
+    ### Exporting geo data:
+    import geopandas as gpd
+    file_countries_gdf = gpd.read_file(path_countries_map_shp)[['ADMIN', 'ADM0_A3', 'geometry']]
+    file_countries_gdf.columns = ['Country_Name', 'Country_Long_Code', 'Country_Geometry']
+    file_countries_gdf.sort_values('Country_Long_Code', inplace = True)
+    file_countries_gdf.drop(file_countries_gdf[file_countries_gdf['Country_Name'] == 'Antarctica'].index, axis = 0, inplace = True)
+    ### Converting polygons to coordinates arrays dataframe for bokech patches:
+    from shapely.geometry import MultiPolygon, Polygon
+    arr_names = []
+    arr_codes = []
+    arr_arr_x = []
+    arr_arr_y = []
+    ### Extacting polygons from gdf file:
+    for country_counter, (country_name, country_long_code, country_geometry) in file_countries_gdf.iterrows():
+        ### For group of polygons:
+        if isinstance(country_geometry,  MultiPolygon):
+            for country_polygon in country_geometry:
+                arr_names.append(country_name)            
+                arr_codes.append(country_long_code)
+                arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+                arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))             
+        ### For single polygons:            
+        else:
+            country_polygon = country_geometry
+            arr_names.append(country_name)               
+            arr_codes.append(country_long_code)
+            arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+            arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))  
+    ### Constructing dataframe with row for each polygon:            
+    tup_country_coords = tuple(zip(arr_names, arr_codes, arr_arr_x, arr_arr_y))
+    df_country_coords = pd.DataFrame(list(tup_country_coords), columns = ['Country_Name', 'Country_Long_Code', 'Coord_X_Array', 'Coord_Y_Array'])
+    df_country_coords.set_index(['Country_Long_Code', 'Country_Name'], inplace = True)
+    ### Creating data table for class evolution through month/year to further connect with Slider bokeh widget:
+    df_class_evolution = df_expvol_long.reset_index()
+    df_class_evolution = df_class_evolution[['DatePoint', 'Class', 'Code_Long', 'None', 'By_Date', 'By_Value']]
+    df_class_evolution['Year_Month'] = df_class_evolution['DatePoint'].dt.to_period('M')
+    df_class_evolution.drop('DatePoint', axis = 1, inplace = True)
+    df_class_evolution.set_index(['Year_Month'], inplace = True)
+    ### Preparing dictionary of class membership for world map countries on each available month/year:
+    arr_classes_name = np.append(df_class_evolution['Class'].unique(), 'ALL')
+    arr_weights_name = np.array(['None', 'By_Date', 'By_Value'])
+    dict_date_classes = {}
+    dict_expvol_general = {}
+    for iter_class_name in arr_classes_name:
+        dict_expvol_general[iter_class_name] = {}
+        for iter_weight_name in arr_weights_name:
+            dict_expvol_general[iter_class_name][iter_weight_name] = {}    
+    dict_iter_country = {}
+    for iter_index in df_class_evolution.index.unique():
+        df_iter_class_plus = df_class_evolution.loc[iter_index]
+        df_iter_class_plus = df_iter_class_plus.reset_index()
+        df_iter_class_plus.set_index('Code_Long', inplace = True)
+        df_iter_class_plus.drop('Year_Month', axis = 1 ,inplace = True)
+        df_iter_country = df_country_coords.reset_index(level = [1])['Country_Name'].to_frame().merge(df_iter_class_plus, how = 'left', 
+                                                                                                      left_on = 'Country_Long_Code', right_index = True)
+        df_iter_country.drop('Country_Name', axis = 1, inplace = True)
+        dict_date_classes[iter_index.strftime('%Y-%m')] = df_iter_country['Class'].values  
+        for iter_class_name in arr_classes_name:
+            df_iter_country_class = df_iter_country.copy()
+            if (iter_class_name != 'ALL'):
+                df_iter_country_class.loc[df_iter_country[df_iter_country['Class'] != iter_class_name].index, ['None', 'By_Date', 'By_Value']] = np.NaN           
+            dict_iter_country[iter_class_name] = df_iter_country_class
+            for iter_weight_name in arr_weights_name:
+                dict_expvol_general[iter_class_name][iter_weight_name][iter_index.strftime('%Y-%m')] = dict_iter_country[iter_class_name][iter_weight_name].values
+    ### Configuring latest known MSCI data as initial world map classification data source:
+    df_current_date = df_class_evolution.loc[df_class_evolution.index[-1]]
+    df_current_date = df_current_date.reset_index()
+    df_current_date.set_index('Code_Long', inplace = True)
+    df_current_date.drop('Year_Month', axis = 1 ,inplace = True)
+    df_country_coords_class = df_country_coords.merge(df_current_date, how = 'left', left_on = 'Country_Long_Code', right_index = True)
+    df_country_coords_class['Active'] = df_country_coords_class['None']
+    ### Configuring actual MSCI common average as initial class average expvol plot data source:
+    df_class_average = df_class_evolution[df_class_evolution['Class'] == 'ALL'].copy()
+    df_class_average['Active'] = df_class_average['None']
+    ### Creating list for countrty selection:
+    df_expvol_countries = df_class_evolution.reset_index().merge(df_country_codes.reset_index(), how = 'left', left_on = 'Code_Long', right_on = 'ISO LONG')
+    df_countries_list = df_expvol_countries.drop_duplicates(subset = ['COUNTRY']).dropna().reset_index()
+    df_countries_list.sort_values('COUNTRY', inplace = True)
+    ### Reconfiguring membership history for long ISO codes
+    df_history_membership_long = df_history_membership.merge(df_country_codes, how = 'left', left_index = True, right_on = 'ISO SHORT').reset_index()
+    df_history_membership_long.head()
+    df_history_membership_long.drop(['COUNTRY', 'ISO SHORT'], axis = 1, inplace = True)
+    df_history_membership_long.rename(columns = {'ISO LONG': 'Member Code'}, inplace = True)
+    df_history_membership_long.set_index('Member Code')
+    ### Creating transit dataframe as container for data transfer betwwen widgets and figures:
+    df_meta_transit = pd.DataFrame([str(df_class_evolution.index[-1]), 'ALL', 'None', 'None'], index = ['Year_Month', 'Class', 'Weights', 'Country'])  
+    
+    ### Defining output to notebook or to html file:
+    b_pl.output_notebook()
+    ### Bokeh Data Source defining:
+    src_meta_transit =  b_pl.ColumnDataSource(df_meta_transit.T) ### For data transfer betwwen elements
+    src_country_coords =  b_pl.ColumnDataSource(df_country_coords_class.reset_index()) ### For world map borders
+    src_expvol_evolution = b_pl.ColumnDataSource(df_class_evolution.reset_index()) ### For plotting country level expvol values (common data)
+    src_class_average = b_pl.ColumnDataSource(df_class_average.reset_index()) ### For plotting class average expvol values
+    src_country_chosen = b_pl.ColumnDataSource(df_class_average.copy().reset_index()) ### For plotting country level expvol values (chosen country)
+    src_class_boxes = b_md.ColumnDataSource(df_history_membership_long) ### For background color box annotations
+    ### Plot boundary dates defining:
+    fig_min_date = df_class_average.reset_index()['Year_Month'].min().to_timestamp()
+    fig_max_date = df_class_average.reset_index()['Year_Month'].max().to_timestamp()
+    ### Weights select additional data connectors constructing:
+    dict_weights_select = {'Priority: none (equal weights)': 'None', 'Priority: by date': 'By_Date', 'Priority: by similarity to current value (MRI vector)': 'By_Value'}
+    dict_weights_mirror = dict(zip(dict_weights_select.values(), dict_weights_select.keys()))
+    arr_weights_select = list(dict_weights_select.keys())
+    ### Class select additional data connectors constructing:
+    dict_classes_select = {'Developed Markets': 'DM', 'Emerging Markets': 'EM', 'Frontier Markets': 'FM', 'Standalone Markets': 'SM', 'All Markets': 'ALL'}
+    dict_classes_mirror = dict(zip(dict_classes_select.values(), dict_classes_select.keys()))
+    arr_classes_select = list(dict_classes_select.keys())
+    ### Country select additional data connectors constructing:    
+    arr_country_select_list = list(np.append((df_countries_list['COUNTRY'] + ' (' + df_countries_list['Code_Long'] + ')').values, 'No country selected'))
+    arr_country_code_list = list(np.append(df_countries_list['Code_Long'].values, 'None'))
+    dict_country_list = dict(zip(arr_country_select_list, arr_country_code_list))
+    dict_country_mirror = dict(zip(arr_country_code_list, arr_country_select_list))
+    ### Colors categorising and mapping:
+    linear_cm_expvol = b_md.LinearColorMapper(low = 0, high = 1, palette = inferno(20)[::-1], nan_color = 'silver')
+    arr_classes_name = list(dict_classes_select.values())[: -1][::-1]
+    arr_classes_num = list(list(np.arange(len(arr_classes_name)) + 0.5))
+    arr_classes_str = list(map(str, arr_classes_num))
+    dict_classes_label = dict(zip(arr_classes_str, arr_classes_name))
+    dict_classes_colors = dict(zip(arr_classes_name, Set2[4]))
+    categorical_cm_class = b_md.CategoricalColorMapper(factors = arr_classes_name, palette = Set2[4], nan_color = 'silver')
+    linear_cm_class = b_md.LinearColorMapper(low = 0, high = len(arr_classes_name), palette = Set2[4], nan_color = 'silver')
+    ### Initialising expvol values plot figure:
+    str_fig_expvol_toolbar =  'pan, wheel_zoom, reset'
+    tup_fig_expvol_size = (800, 200)
+    str_fig_expvol_title = 'Exponential volatility: '
+    fig_expvol_plot = b_pl.figure(tools = str_fig_expvol_toolbar, active_scroll = 'wheel_zoom', plot_width = tup_fig_expvol_size[0], plot_height = tup_fig_expvol_size[1],
+                                  title = str_fig_expvol_title + dict_classes_mirror['ALL'] + ' / ' + dict_weights_mirror['None'],
+                                  x_axis_type = 'datetime', x_range = (fig_min_date, fig_max_date)) 
+    ### Drawing expvol plots:
+    line_class_plot = fig_expvol_plot.line(x = 'Year_Month', y = 'Active', source = src_class_average,
+                                           line_color = 'blue', line_width = 2.0, line_dash = 'dotted')
+    line_country_plot = fig_expvol_plot.line(x = 'Year_Month', y = 'Active', source = src_country_chosen,
+                                             line_color = 'red', line_width = 2.0, line_dash = 'dotted', line_alpha = 0.0)
+    ### Adding classes color bar to expvol plot figure:
+    color_bar_class = b_md.ColorBar(color_mapper = linear_cm_class, scale_alpha = 0.2, label_standoff = 8, width = 20, height = tup_fig_expvol_size[1] - 50,
+                                    border_line_color = None, orientation = 'vertical', location = (0, -10),
+                                    ticker = b_md.FixedTicker(ticks = arr_classes_num), major_label_overrides = dict_classes_label,
+                                    title = 'Class')
+    fig_expvol_plot.add_layout(color_bar_class, 'right')
+    ### Adding current data marker to expvol plot figure:    
+    span_current_date = b_md.Span(location = fig_max_date, dimension = 'height', line_color = 'gray', line_dash = 'dashed', line_width = 3.0)
+    fig_expvol_plot.add_layout(span_current_date)
+    ### Adding dynamic legend to expvol plot figure:     
+    legend_expvol_plot = b_md.Legend(items = [('Class Average', [line_class_plot]), (arr_country_select_list[-1] , [line_country_plot])], location = (0, 0))
+    fig_expvol_plot.add_layout(legend_expvol_plot)
+    ### Adding array of blank annotations (class evolution stages) to expvol plot figure:
+    num_annotations = 5
+    arr_annotations = []
+    for counter_annotation in np.arange(num_annotations):
+        arr_annotations.append(b_md.BoxAnnotation(left = fig_max_date, right = fig_max_date, fill_alpha = 0.2, fill_color = 'white'))
+        fig_expvol_plot.add_layout(arr_annotations[counter_annotation])
+    ### Tuning expvol plot figure:
+    fig_expvol_plot.legend.location = 'top_left'
+    fig_expvol_plot.legend.background_fill_alpha  = 0.75
+    fig_expvol_plot.yaxis.formatter = b_md.NumeralTickFormatter(format = '.00')
+    ### Creating hover inspection to expvol plot figure:
+    fig_expvol_plot.add_tools(b_md.HoverTool(tooltips = [('Country code', '@Code_Long'), ('Month', '@Year_Month{%Y-%m}'), ('ExpVol (equal weights)', '@None{0,0.000}'),
+                                                         ('ExpVol (by date weights)', '@By_Date{0,0.000}'), ('ExpVol (similarity weights)', '@By_Value{0,0.000}')], 
+                                             formatters = {'None': 'numeral', 'By_Date': 'numeral', 'By_Value': 'numeral', 'Year_Month': 'datetime'}))
+    ### Constructing select widget for choosing country tuning (including connection between selected value and plot):
+    callback_country_select = CustomJS(args = dict(fig_plot_to_update = fig_expvol_plot, legend_expvol = legend_expvol_plot, line_country = line_country_plot,
+                                                   arr_country_codes = dict_country_list,
+                                                   cds_transit = src_meta_transit, cds_country_plot = src_country_chosen, cds_full = src_expvol_evolution,
+                                                   cds_annotations = src_class_boxes, date_min = fig_min_date, date_max = fig_max_date,
+                                                   arr_annotations = arr_annotations, num_annotations = num_annotations, dict_colors = dict_classes_colors),
+                                       code = """                                  
+                                              var country_chosen = cb_obj.value;
+                                              var country_code = arr_country_codes[country_chosen];
+                                              cds_transit.data['Country'] = country_code;
+                                              var weights_selected = cds_transit.data['Weights'];                                
+                                              if (country_code == 'None')
+                                              {
+                                                  line_country.glyph.line_alpha = 0.0;                                             
+                                              }
+                                              else
+                                              {
+                                                  line_country.glyph.line_alpha = 1.0;                                           
+                                              }
+                                              var legend_expvol_last = (legend_expvol.items.length - 1);
+                                              legend_expvol.items[legend_expvol_last].label['value'] = country_chosen;
+                                              legend_expvol.change.emit();  
+                                              cds_country_plot.data['Year_Month'] = [];
+                                              cds_country_plot.data['Class'] = [];
+                                              cds_country_plot.data['Code_Long'] = [];
+                                              cds_country_plot.data['None'] = [];
+                                              cds_country_plot.data['By_Date'] = [];
+                                              cds_country_plot.data['By_Value'] = [];
+                                              cds_country_plot.data['Active'] = []; 
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Code_Long'][iter_counter] == country_code))
+                                                  {
+                                                      cds_country_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_country_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_country_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_country_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_country_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_country_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_country_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }                                          
+                                              cds_country_plot.change.emit();
+                                              var iter_ann;
+                                              for (iter_ann = 0; iter_ann < num_annotations; iter_ann++)
+                                              {
+                                                arr_annotations[iter_ann].fill_color = 'white';
+                                                arr_annotations[iter_ann].left = date_max;
+                                                arr_annotations[iter_ann].right = date_max;
+                                              }
+                                              iter_ann = 0;
+                                              var iter_history;
+                                              for (iter_history = 0; iter_history <= cds_annotations.get_length(); iter_history++)
+                                              {
+                                                if (cds_annotations.data['Member Code'][iter_history] == country_code)
+                                                {
+                                                    arr_annotations[iter_ann].fill_color = dict_colors[cds_annotations.data['Index Name'][iter_history]];
+                                                    arr_annotations[iter_ann].left = cds_annotations.data['Start Date'][iter_history];
+                                                    arr_annotations[iter_ann].right = cds_annotations.data['End Date'][iter_history];
+                                                    iter_ann = iter_ann + 1;
+                                                }
+                                              }                                                  
+                                              fig_plot_to_update.change.emit(); 
+                                              """)
+    select_country = Select(title = 'Select country to show plot:', options = arr_country_select_list, value = arr_country_select_list[-1], callback = callback_country_select)
+    ### Initialising worldmap classes evolution figure:
+    str_fig_worldmap_toolbar =  'pan, wheel_zoom, reset'
+    tup_fig_worldmap_size = (tup_fig_expvol_size[0], tup_fig_expvol_size[1] * 2)
+    str_fig_worldmap_title = 'MSCI Membership exponential volatility graduation'
+    fig_world_map = b_pl.figure(tools = str_fig_worldmap_toolbar, active_scroll = 'wheel_zoom', plot_width = tup_fig_worldmap_size[0], plot_height = tup_fig_worldmap_size[1],
+                                title = str_fig_worldmap_title)
+    ### Tuning worldmap figure:
+    fig_world_map.axis.visible = False
+    fig_world_map.xgrid.visible = False
+    fig_world_map.ygrid.visible = False
+    fig_world_map.toolbar.autohide = True
+    ### Creating hover inspection to worldmap figure:    
+    fig_world_map.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country_Name'), ('MSCI Class', '@Class'), ('ExpVol (equal weights)', '@None{0,0.000}'),
+                                                       ('ExpVol (by date weights)', '@By_Date{0,0.000}'), ('ExpVol (similarity weights)', '@By_Value{0,0.000}')], 
+                                           formatters = {'None': 'numeral', 'By_Date': 'numeral', 'By_Value': 'numeral'}))
+    ### Drawing world map:
+    patches_world_map = fig_world_map.patches('Coord_X_Array', 'Coord_Y_Array', source = src_country_coords,
+                                              color = {'field': 'Active', 'transform': linear_cm_expvol}, fill_alpha = 1.0, line_color = 'lightgray', 
+                                              line_width = 1.0)
+    ### Adding expvol value color bar to expvol plot figure: 
+    color_bar_class = b_md.ColorBar(color_mapper = linear_cm_expvol, label_standoff = 8, width = 20, height = tup_fig_worldmap_size[1] - 100,
+                                    border_line_color = None, orientation = 'vertical', location = (0, 50),
+                                    ticker = b_md.AdaptiveTicker(desired_num_ticks = len(linear_cm_expvol.palette)),
+                                    formatter = b_md.NumeralTickFormatter(format = '.00'))
+    fig_world_map.add_layout(color_bar_class, 'right')
+    ### Drawing and tuning date slider widget, creating a trigger for it's changes:
+    callback_date_slider = CustomJS(args = dict(fig_map_to_update = fig_world_map, title_map_main_part = str_fig_worldmap_title, 
+                                                fig_plot_to_update = fig_expvol_plot, span_plot = span_current_date,
+                                                cds_world = src_country_coords, cds_transit = src_meta_transit, cds_plot = src_expvol_evolution,
+                                                arr_date_classes = dict_date_classes, arr_date_expvol_general = dict_expvol_general),
+                                    code = """                             
+                                           var date_chosen = new Date(cb_obj.value);
+                                           var class_selected = cds_transit.data['Class'];
+                                           var weights_selected = cds_transit.data['Weights'];
+                                           var arr_months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                                             'July', 'August', 'September', 'October', 'November', 'December'];
+                                           var date_month_name = arr_months[date_chosen.getMonth()]; 
+                                           fig_map_to_update.title.text = title_map_main_part + ': ' + date_chosen.getFullYear() + ' / ' + date_month_name;
+                                           var date_year_month = date_chosen.getFullYear().toString();
+                                           if (date_chosen.getMonth() > 8)
+                                           {
+                                               date_year_month = date_year_month + '-' + (date_chosen.getMonth() + 1).toString();
+                                           }
+                                           else
+                                           {
+                                               date_year_month = date_year_month + '-' + '0' + (date_chosen.getMonth() + 1).toString();
+                                           }                                  
+                                           cds_transit.data['Year_Month'] = date_year_month;                                       
+                                           cds_world.data['Class'] = arr_date_classes[date_year_month];
+                                           cds_world.data['None'] = arr_date_expvol_general[class_selected]['None'][date_year_month];
+                                           cds_world.data['By_Date'] = arr_date_expvol_general[class_selected]['By_Date'][date_year_month];
+                                           cds_world.data['By_Value'] = arr_date_expvol_general[class_selected]['By_Value'][date_year_month];                         
+                                           cds_world.data['Active'] = cds_world.data[weights_selected];
+                                           cds_world.change.emit();                               
+                                           cds_transit.change.emit(); 
+                                           fig_map_to_update.change.emit();           
+                                           span_plot.location = cb_obj.value;
+                                           span_plot.change.emit();
+                                           fig_plot_to_update.change.emit();                                       
+                                           """)
+    date_min = df_expvol_long.index.get_level_values(level = 0).min()
+    date_max = df_expvol_long.index.get_level_values(level = 0).max()
+    slider_dates = DateSlider(title = 'Date to show classes membership', width = tup_fig_worldmap_size[0] - 50, start = date_min, end = date_max, step = 1, value = date_max)
+    slider_dates.callback_policy = 'throttle'
+    slider_dates.js_on_change('value', callback_date_slider)
+    slider_dates.tooltips = False
+    ### Creating select widget for choosing class tuning (including connection between selected value and range slider boundaries, figure plots, figure boundaries, figure title):
+    callback_class_select = CustomJS(args = dict(fig_map_to_update = fig_world_map, fig_plot_to_update = fig_expvol_plot, title_plot_main_part = str_fig_expvol_title,
+                                                 cds_world = src_country_coords, cds_transit = src_meta_transit, 
+                                                 cds_full = src_expvol_evolution, cds_class_plot = src_class_average,
+                                                 arr_classes_names = dict_classes_select, arr_date_expvol_general = dict_expvol_general,
+                                                 arr_classes_mirror = dict_classes_mirror, arr_weights_mirror = dict_weights_mirror),
+                                     code = """
+                                            var date_year_month = cds_transit.data['Year_Month'];
+                                            var class_selected = arr_classes_names[cb_obj.value];
+                                            var weights_selected = cds_transit.data['Weights'];                                        
+                                            cds_world.data['None'] = arr_date_expvol_general[class_selected]['None'][date_year_month];
+                                            cds_world.data['By_Date'] = arr_date_expvol_general[class_selected]['By_Date'][date_year_month];
+                                            cds_world.data['By_Value'] = arr_date_expvol_general[class_selected]['By_Value'][date_year_month];                         
+                                            cds_world.data['Active'] = cds_world.data[weights_selected];     
+                                            cds_transit.data['Class'] = class_selected;                                           
+                                            cds_world.change.emit();                               
+                                            cds_transit.change.emit(); 
+                                            fig_map_to_update.change.emit();
+                                            fig_plot_to_update.title.text = title_plot_main_part + arr_classes_mirror[class_selected] + ' / '
+                                            fig_plot_to_update.title.text = fig_plot_to_update.title.text + arr_weights_mirror[weights_selected];
+                                            cds_class_plot.data['Year_Month'] = [];
+                                            cds_class_plot.data['Class'] = [];
+                                            cds_class_plot.data['Code_Long'] = [];
+                                            cds_class_plot.data['None'] = [];
+                                            cds_class_plot.data['By_Date'] = [];
+                                            cds_class_plot.data['By_Value'] = [];
+                                            cds_class_plot.data['Active'] = [];                                        
+                                            for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                            {
+                                                if ((cds_full.data['Class'][iter_counter] == class_selected) && (cds_full.data['Code_Long'][iter_counter] == 'CLASS'))
+                                                {
+                                                    cds_class_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                    cds_class_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                    cds_class_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                    cds_class_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                    cds_class_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                    cds_class_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                    cds_class_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                }
+                                            }
+                                            cds_class_plot.change.emit();                                     
+                                            fig_plot_to_update.change.emit();
+                                            """)
+    select_class = Select(title = 'Select MSCI class to show:', options = arr_classes_select, value = arr_classes_select[-1], callback = callback_class_select)
+    ### Creating select widget for choosing country (including connection between selected value and range slider boundaries, figure plots, figure boundaries, figure title):
+    callback_weights_select = CustomJS(args = dict(fig_map_to_update = fig_world_map, fig_plot_to_update = fig_expvol_plot, title_plot_main_part = str_fig_expvol_title, 
+                                                   cds_world = src_country_coords, cds_transit = src_meta_transit, 
+                                                   cds_full = src_expvol_evolution, cds_class_plot = src_class_average, cds_country_plot = src_country_chosen,
+                                                   arr_weights_names = dict_weights_select, arr_date_expvol_general = dict_expvol_general,
+                                                   arr_classes_mirror = dict_classes_mirror, arr_weights_mirror = dict_weights_mirror),
+                                       code = """
+                                              var date_year_month = cds_transit.data['Year_Month'];
+                                              var class_selected = cds_transit.data['Class'];
+                                              var country_code = cds_transit.data['Country'];                                          
+                                              var weights_selected = arr_weights_names[cb_obj.value];
+                                              cds_world.data['Active'] = cds_world.data[weights_selected];
+                                              cds_transit.data['Weights'] = weights_selected;
+                                              cds_transit.change.emit();
+                                              cds_world.change.emit();                                       
+                                              fig_map_to_update.change.emit();
+                                              fig_plot_to_update.title.text = title_plot_main_part + arr_classes_mirror[class_selected] + ' / '
+                                              fig_plot_to_update.title.text = fig_plot_to_update.title.text + arr_weights_mirror[weights_selected];
+                                              cds_class_plot.data['Year_Month'] = [];
+                                              cds_class_plot.data['Class'] = [];
+                                              cds_class_plot.data['Code_Long'] = [];
+                                              cds_class_plot.data['None'] = [];
+                                              cds_class_plot.data['By_Date'] = [];
+                                              cds_class_plot.data['By_Value'] = [];
+                                              cds_class_plot.data['Active'] = [];                                        
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Class'][iter_counter] == class_selected) && (cds_full.data['Code_Long'][iter_counter] == 'CLASS'))
+                                                  {
+                                                      cds_class_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_class_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_class_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_class_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_class_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_class_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_class_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }
+                                              cds_class_plot.change.emit();
+                                              cds_country_plot.data['Year_Month'] = [];
+                                              cds_country_plot.data['Class'] = [];
+                                              cds_country_plot.data['Code_Long'] = [];
+                                              cds_country_plot.data['None'] = [];
+                                              cds_country_plot.data['By_Date'] = [];
+                                              cds_country_plot.data['By_Value'] = [];
+                                              cds_country_plot.data['Active'] = []; 
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Code_Long'][iter_counter] == country_code))
+                                                  {
+                                                      cds_country_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_country_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_country_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_country_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_country_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_country_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_country_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }                                          
+                                              cds_country_plot.change.emit();  
+                                              fig_plot_to_update.change.emit();                                          
+                                              """)
+    select_weights = Select(title = 'Select way of weights allocation:', options = arr_weights_select, value = arr_weights_select[0], callback = callback_weights_select)
+    ### Constructing common layout: 
+    layout_world = b_col(b_row(widgetbox(select_class), widgetbox(select_weights)), fig_world_map, widgetbox(slider_dates), fig_expvol_plot, widgetbox(select_country))
+
+    return layout_world
+
+
+def hh_bokeh_MSCI_MRI_beta_map(path_countries_map_shp, df_beta_all, df_country_codes, df_history_membership):
+    """
+    Version 0.01 2019-06-04
+    
+    FUNCTIONALITY:
+      Drawing world map and synchronous plots for illustrating MSCI on MRI betas
+    OUTPUT:
+      bokeh.layouts.column that consists of:
+      bokeh.layouts.column that consists of: 
+          select_class (bokeh.models.widgets.inputs) - selection of class to show (including all classes)
+          select_weights (bokeh.models.widgets.inputs) - selection the way of MSCI returns weighting to calculate beta
+      fig_world_map (bokeh.plotting.figure) - world map figure to display
+      slider_dates (bokeh.models.widgets.DateSlider) - slider to date choosing for showing crossectional MSCI membership
+      fig_beta_plot (bokeh.plotting.figure) - beta history plot figure to display
+      select_country (bokeh.models.widgets.inputs) - selection country to draw additional beta history plot
+    INPUT:
+      path_countries_map_shp (string) - path to local file with world countries geo data
+      df_beta_all (pd.DataFrame) - results of MSCI on MRI betas
+      df_country_codes (pd.DataFrame) - table of country codes
+      df_history_membership (pd.DataFrame) - history of moving countries within MSCI classes     
+    """
+    
+    import numpy as np
+    import pandas as pd
+    import geopandas as gpd
+    from shapely.geometry import MultiPolygon, Polygon    
+    import bokeh.plotting as b_pl
+    import bokeh.models as b_md    
+    from bokeh.palettes import Set2, Set3, RdYlGn, YlOrRd, inferno
+    from bokeh.layouts import widgetbox
+    from bokeh.layouts import column as b_col
+    from bokeh.layouts import row as b_row
+    from bokeh.models.widgets import DateSlider, Select
+    from bokeh.models import CustomJS
+    
+    ### Integrating classes average and common average to beta data table:
+    for member_code, (date_start, date_end, class_name) in df_history_membership.iterrows():
+        index_iter_full = pd.date_range(start = date_start, end = date_end, freq = 'BM')
+        if (index_iter_full.size > 0):
+            if (df_beta_all.index.isin([member_code], level = 0).sum() > 0):
+                index_iter_returns = df_beta_all.loc[member_code].index.intersection(index_iter_full)
+                df_beta_all.loc[(member_code, index_iter_returns), 'Class'] = class_name 
+    df_beta_all = df_beta_all.reset_index()       
+    df_beta_all.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Constructing class average:
+    df_beta_class = df_beta_all.copy()
+    df_beta_class = df_beta_class.groupby(['Class', 'DatePoint']).mean()
+    df_beta_class = df_beta_class.reset_index()
+    df_beta_class['Country'] = df_beta_class['Class'] + ' - Average'
+    df_beta_class.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Constructing common average:
+    df_beta_common = df_beta_all.copy()
+    df_beta_common = df_beta_common.groupby(['DatePoint']).mean()
+    df_beta_common = df_beta_common.reset_index()
+    df_beta_common = df_beta_common.assign(Country = 'ALL - Average', Class = 'ALL')
+    df_beta_common.set_index(['Class', 'Country', 'DatePoint'], inplace = True)
+    ### Consolidating extended beta data table:
+    df_beta_all = pd.concat([df_beta_all, df_beta_class])
+    df_beta_all = pd.concat([df_beta_all, df_beta_common])
+    df_beta_all.sort_index(axis = 0, level = [0, 1], inplace = True)
+    df_beta_all = df_beta_all.reset_index('DatePoint')
+    ### Integrating long codes to beta data table:
+    df_beta_long = df_beta_all.reset_index()
+    df_beta_long = df_beta_long.merge(df_country_codes, how = 'left', left_on = 'Country', right_on = 'ISO SHORT')
+    df_beta_long.drop(['ISO SHORT'], axis = 1, inplace = True)
+    df_beta_long.rename(columns = {'Country': 'Code_Short', 'ISO LONG': 'Code_Long'}, inplace = True)
+    df_beta_long['Code_Long'].fillna('CLASS', inplace = True)
+    df_beta_long.set_index(['DatePoint', 'Class', 'Code_Long', 'Code_Short'], inplace = True)
+    df_beta_long.sort_index(axis = 0, level = ['DatePoint', 'Class', 'Code_Long'], inplace = True)
+    ### Exporting geo data:
+    import geopandas as gpd
+    file_countries_gdf = gpd.read_file(path_countries_map_shp)[['ADMIN', 'ADM0_A3', 'geometry']]
+    file_countries_gdf.columns = ['Country_Name', 'Country_Long_Code', 'Country_Geometry']
+    file_countries_gdf.sort_values('Country_Long_Code', inplace = True)
+    file_countries_gdf.drop(file_countries_gdf[file_countries_gdf['Country_Name'] == 'Antarctica'].index, axis = 0, inplace = True)
+    ### Converting polygons to coordinates arrays dataframe for bokech patches:
+    from shapely.geometry import MultiPolygon, Polygon
+    arr_names = []
+    arr_codes = []
+    arr_arr_x = []
+    arr_arr_y = []
+    ### Extacting polygons from gdf file:
+    for country_counter, (country_name, country_long_code, country_geometry) in file_countries_gdf.iterrows():
+        ### For group of polygons:
+        if isinstance(country_geometry,  MultiPolygon):
+            for country_polygon in country_geometry:
+                arr_names.append(country_name)            
+                arr_codes.append(country_long_code)
+                arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+                arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))             
+        ### For single polygons:            
+        else:
+            country_polygon = country_geometry
+            arr_names.append(country_name)               
+            arr_codes.append(country_long_code)
+            arr_arr_x.append(list(country_polygon.exterior.coords.xy[0]))
+            arr_arr_y.append(list(country_polygon.exterior.coords.xy[1]))  
+    ### Constructing dataframe with row for each polygon:            
+    tup_country_coords = tuple(zip(arr_names, arr_codes, arr_arr_x, arr_arr_y))
+    df_country_coords = pd.DataFrame(list(tup_country_coords), columns = ['Country_Name', 'Country_Long_Code', 'Coord_X_Array', 'Coord_Y_Array'])
+    df_country_coords.set_index(['Country_Long_Code', 'Country_Name'], inplace = True)
+    ### Creating data table for class evolution through month/year to further connect with Slider bokeh widget:
+    df_class_evolution = df_beta_long.reset_index()
+    df_class_evolution = df_class_evolution[['DatePoint', 'Class', 'Code_Long', 'None', 'By_Date', 'By_Value']]
+    df_class_evolution['Year_Month'] = df_class_evolution['DatePoint'].dt.to_period('M')
+    df_class_evolution.drop('DatePoint', axis = 1, inplace = True)
+    df_class_evolution.set_index(['Year_Month'], inplace = True)
+    ### Preparing dictionary of class membership for world map countries on each available month/year:
+    arr_classes_name = np.append(df_class_evolution['Class'].unique(), 'ALL')
+    arr_weights_name = np.array(['None', 'By_Date', 'By_Value'])
+    dict_date_classes = {}
+    dict_beta_general = {}
+    for iter_class_name in arr_classes_name:
+        dict_beta_general[iter_class_name] = {}
+        for iter_weight_name in arr_weights_name:
+            dict_beta_general[iter_class_name][iter_weight_name] = {}    
+    dict_iter_country = {}
+    for iter_index in df_class_evolution.index.unique():
+        df_iter_class_plus = df_class_evolution.loc[iter_index]
+        df_iter_class_plus = df_iter_class_plus.reset_index()
+        df_iter_class_plus.set_index('Code_Long', inplace = True)
+        df_iter_class_plus.drop('Year_Month', axis = 1 ,inplace = True)
+        df_iter_country = df_country_coords.reset_index(level = [1])['Country_Name'].to_frame().merge(df_iter_class_plus, how = 'left', 
+                                                                                                      left_on = 'Country_Long_Code', right_index = True)
+        df_iter_country.drop('Country_Name', axis = 1, inplace = True)
+        dict_date_classes[iter_index.strftime('%Y-%m')] = df_iter_country['Class'].values  
+        for iter_class_name in arr_classes_name:
+            df_iter_country_class = df_iter_country.copy()
+            if (iter_class_name != 'ALL'):
+                df_iter_country_class.loc[df_iter_country[df_iter_country['Class'] != iter_class_name].index, ['None', 'By_Date', 'By_Value']] = np.NaN           
+            dict_iter_country[iter_class_name] = df_iter_country_class
+            for iter_weight_name in arr_weights_name:
+                dict_beta_general[iter_class_name][iter_weight_name][iter_index.strftime('%Y-%m')] = dict_iter_country[iter_class_name][iter_weight_name].values
+    ### Configuring latest known MSCI data as initial world map classification data source:
+    df_current_date = df_class_evolution.loc[df_class_evolution.index[-1]]
+    df_current_date = df_current_date.reset_index()
+    df_current_date.set_index('Code_Long', inplace = True)
+    df_current_date.drop('Year_Month', axis = 1 ,inplace = True)
+    df_country_coords_class = df_country_coords.merge(df_current_date, how = 'left', left_on = 'Country_Long_Code', right_index = True)
+    df_country_coords_class['Active'] = df_country_coords_class['None']
+    ### Configuring actual MSCI common average as initial class average beta plot data source:
+    df_class_average = df_class_evolution[df_class_evolution['Class'] == 'ALL'].copy()
+    df_class_average['Active'] = df_class_average['None']
+    ### Creating list for countrty selection:
+    df_beta_countries = df_class_evolution.reset_index().merge(df_country_codes.reset_index(), how = 'left', left_on = 'Code_Long', right_on = 'ISO LONG')
+    df_countries_list = df_beta_countries.drop_duplicates(subset = ['COUNTRY']).dropna().reset_index()
+    df_countries_list.sort_values('COUNTRY', inplace = True)
+    ### Reconfiguring membership history for long ISO codes
+    df_history_membership_long = df_history_membership.merge(df_country_codes, how = 'left', left_index = True, right_on = 'ISO SHORT').reset_index()
+    df_history_membership_long.head()
+    df_history_membership_long.drop(['COUNTRY', 'ISO SHORT'], axis = 1, inplace = True)
+    df_history_membership_long.rename(columns = {'ISO LONG': 'Member Code'}, inplace = True)
+    df_history_membership_long.set_index('Member Code')
+    ### Creating transit dataframe as container for data transfer betwwen widgets and figures:
+    df_meta_transit = pd.DataFrame([str(df_class_evolution.index[-1]), 'ALL', 'None', 'None'], index = ['Year_Month', 'Class', 'Weights', 'Country'])  
+    
+    ### Defining output to notebook or to html file:
+    b_pl.output_notebook()
+    ### Bokeh Data Source defining:
+    src_meta_transit =  b_pl.ColumnDataSource(df_meta_transit.T) ### For data transfer betwwen elements
+    src_country_coords =  b_pl.ColumnDataSource(df_country_coords_class.reset_index()) ### For world map borders
+    src_beta_evolution = b_pl.ColumnDataSource(df_class_evolution.reset_index()) ### For plotting country level beta values (common data)
+    src_class_average = b_pl.ColumnDataSource(df_class_average.reset_index()) ### For plotting class average beta values
+    src_country_chosen = b_pl.ColumnDataSource(df_class_average.copy().reset_index()) ### For plotting country level beta values (chosen country)
+    src_class_boxes = b_md.ColumnDataSource(df_history_membership_long) ### For background color box annotations
+    ### Plot boundary dates defining:
+    fig_min_date = df_class_average.reset_index()['Year_Month'].min().to_timestamp()
+    fig_max_date = df_class_average.reset_index()['Year_Month'].max().to_timestamp()
+    ### Weights select additional data connectors constructing:
+    dict_weights_select = {'Priority: none (equal weights)': 'None', 'Priority: by date': 'By_Date', 'Priority: by similarity to current value (MRI vector)': 'By_Value'}
+    dict_weights_mirror = dict(zip(dict_weights_select.values(), dict_weights_select.keys()))
+    arr_weights_select = list(dict_weights_select.keys())
+    ### Class select additional data connectors constructing:
+    dict_classes_select = {'Developed Markets': 'DM', 'Emerging Markets': 'EM', 'Frontier Markets': 'FM', 'Standalone Markets': 'SM', 'All Markets': 'ALL'}
+    dict_classes_mirror = dict(zip(dict_classes_select.values(), dict_classes_select.keys()))
+    arr_classes_select = list(dict_classes_select.keys())
+    ### Country select additional data connectors constructing:    
+    arr_country_select_list = list(np.append((df_countries_list['COUNTRY'] + ' (' + df_countries_list['Code_Long'] + ')').values, 'No country selected'))
+    arr_country_code_list = list(np.append(df_countries_list['Code_Long'].values, 'None'))
+    dict_country_list = dict(zip(arr_country_select_list, arr_country_code_list))
+    dict_country_mirror = dict(zip(arr_country_code_list, arr_country_select_list))
+    ### Colors categorising and mapping:
+    linear_cm_beta = b_md.LinearColorMapper(low = -0.35, high = 0.10, palette = inferno(45), nan_color = 'silver')
+    arr_classes_name = list(dict_classes_select.values())[: -1][::-1]
+    arr_classes_num = list(list(np.arange(len(arr_classes_name)) + 0.5))
+    arr_classes_str = list(map(str, arr_classes_num))
+    dict_classes_label = dict(zip(arr_classes_str, arr_classes_name))
+    dict_classes_colors = dict(zip(arr_classes_name, Set2[4]))
+    categorical_cm_class = b_md.CategoricalColorMapper(factors = arr_classes_name, palette = Set2[4], nan_color = 'silver')
+    linear_cm_class = b_md.LinearColorMapper(low = 0, high = len(arr_classes_name), palette = Set2[4], nan_color = 'silver')
+    ### Initialising beta values plot figure:
+    str_fig_beta_toolbar =  'pan, wheel_zoom, reset'
+    tup_fig_beta_size = (800, 200)
+    str_fig_beta_title = 'Regressor (MRI) beta: '
+    fig_beta_plot = b_pl.figure(tools = str_fig_beta_toolbar, active_scroll = 'wheel_zoom', plot_width = tup_fig_beta_size[0], plot_height = tup_fig_beta_size[1],
+                                  title = str_fig_beta_title + dict_classes_mirror['ALL'] + ' / ' + dict_weights_mirror['None'],
+                                  x_axis_type = 'datetime', x_range = (fig_min_date, fig_max_date)) 
+    ### Drawing beta plots:
+    line_class_plot = fig_beta_plot.line(x = 'Year_Month', y = 'Active', source = src_class_average,
+                                           line_color = 'blue', line_width = 2.0, line_dash = 'dotted')
+    line_country_plot = fig_beta_plot.line(x = 'Year_Month', y = 'Active', source = src_country_chosen,
+                                             line_color = 'red', line_width = 2.0, line_dash = 'dotted', line_alpha = 0.0)
+    ### Adding classes color bar to beta plot figure:
+    color_bar_class = b_md.ColorBar(color_mapper = linear_cm_class, scale_alpha = 0.2, label_standoff = 8, width = 20, height = tup_fig_beta_size[1] - 50,
+                                    border_line_color = None, orientation = 'vertical', location = (0, -10),
+                                    ticker = b_md.FixedTicker(ticks = arr_classes_num), major_label_overrides = dict_classes_label,
+                                    title = 'Class')
+    fig_beta_plot.add_layout(color_bar_class, 'right')
+    ### Adding current data marker to beta plot figure:    
+    span_current_date = b_md.Span(location = fig_max_date, dimension = 'height', line_color = 'gray', line_dash = 'dashed', line_width = 3.0)
+    fig_beta_plot.add_layout(span_current_date)
+    ### Adding dynamic legend to beta plot figure:     
+    legend_beta_plot = b_md.Legend(items = [('Class Average', [line_class_plot]), (arr_country_select_list[-1] , [line_country_plot])], location = (0, 0))
+    fig_beta_plot.add_layout(legend_beta_plot)
+    ### Adding array of blank annotations (class evolution stages) to beta plot figure:
+    num_annotations = 5
+    arr_annotations = []
+    for counter_annotation in np.arange(num_annotations):
+        arr_annotations.append(b_md.BoxAnnotation(left = fig_max_date, right = fig_max_date, fill_alpha = 0.2, fill_color = 'white'))
+        fig_beta_plot.add_layout(arr_annotations[counter_annotation])
+    ### Tuning beta plot figure:
+    fig_beta_plot.legend.location = 'top_left'
+    fig_beta_plot.legend.background_fill_alpha  = 0.75
+    fig_beta_plot.yaxis.formatter = b_md.NumeralTickFormatter(format = '.00')
+    ### Creating hover inspection to beta plot figure:
+    fig_beta_plot.add_tools(b_md.HoverTool(tooltips = [('Country code', '@Code_Long'), ('Month', '@Year_Month{%Y-%m}'), ('Regressor beta (equal weights)', '@None{0,0.000}'),
+                                                         ('Regressor beta (by date weights)', '@By_Date{0,0.000}'), ('Regressor beta (similarity weights)', '@By_Value{0,0.000}')], 
+                                             formatters = {'None': 'numeral', 'By_Date': 'numeral', 'By_Value': 'numeral', 'Year_Month': 'datetime'}))
+    ### Constructing select widget for choosing country tuning (including connection between selected value and plot):
+    callback_country_select = CustomJS(args = dict(fig_plot_to_update = fig_beta_plot, legend_beta = legend_beta_plot, line_country = line_country_plot,
+                                                   arr_country_codes = dict_country_list,
+                                                   cds_transit = src_meta_transit, cds_country_plot = src_country_chosen, cds_full = src_beta_evolution,
+                                                   cds_annotations = src_class_boxes, date_min = fig_min_date, date_max = fig_max_date,
+                                                   arr_annotations = arr_annotations, num_annotations = num_annotations, dict_colors = dict_classes_colors),
+                                       code = """                                  
+                                              var country_chosen = cb_obj.value;
+                                              var country_code = arr_country_codes[country_chosen];
+                                              cds_transit.data['Country'] = country_code;
+                                              var weights_selected = cds_transit.data['Weights'];                                
+                                              if (country_code == 'None')
+                                              {
+                                                  line_country.glyph.line_alpha = 0.0;                                             
+                                              }
+                                              else
+                                              {
+                                                  line_country.glyph.line_alpha = 1.0;                                           
+                                              }
+                                              var legend_beta_last = (legend_beta.items.length - 1);
+                                              legend_beta.items[legend_beta_last].label['value'] = country_chosen;
+                                              legend_beta.change.emit();  
+                                              cds_country_plot.data['Year_Month'] = [];
+                                              cds_country_plot.data['Class'] = [];
+                                              cds_country_plot.data['Code_Long'] = [];
+                                              cds_country_plot.data['None'] = [];
+                                              cds_country_plot.data['By_Date'] = [];
+                                              cds_country_plot.data['By_Value'] = [];
+                                              cds_country_plot.data['Active'] = []; 
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Code_Long'][iter_counter] == country_code))
+                                                  {
+                                                      cds_country_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_country_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_country_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_country_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_country_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_country_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_country_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }                                          
+                                              cds_country_plot.change.emit();
+                                              var iter_ann;
+                                              for (iter_ann = 0; iter_ann < num_annotations; iter_ann++)
+                                              {
+                                                arr_annotations[iter_ann].fill_color = 'white';
+                                                arr_annotations[iter_ann].left = date_max;
+                                                arr_annotations[iter_ann].right = date_max;
+                                              }
+                                              iter_ann = 0;
+                                              var iter_history;
+                                              for (iter_history = 0; iter_history <= cds_annotations.get_length(); iter_history++)
+                                              {
+                                                if (cds_annotations.data['Member Code'][iter_history] == country_code)
+                                                {
+                                                    arr_annotations[iter_ann].fill_color = dict_colors[cds_annotations.data['Index Name'][iter_history]];
+                                                    arr_annotations[iter_ann].left = cds_annotations.data['Start Date'][iter_history];
+                                                    arr_annotations[iter_ann].right = cds_annotations.data['End Date'][iter_history];
+                                                    iter_ann = iter_ann + 1;
+                                                }
+                                              }                                                  
+                                              fig_plot_to_update.change.emit(); 
+                                              """)
+    select_country = Select(title = 'Select country to show plot:', options = arr_country_select_list, value = arr_country_select_list[-1], callback = callback_country_select)
+    ### Initialising worldmap classes evolution figure:
+    str_fig_worldmap_toolbar =  'pan, wheel_zoom, reset'
+    tup_fig_worldmap_size = (tup_fig_beta_size[0], tup_fig_beta_size[1] * 2)
+    str_fig_worldmap_title = 'MSCI Membership regressor (MRI) beta graduation'
+    fig_world_map = b_pl.figure(tools = str_fig_worldmap_toolbar, active_scroll = 'wheel_zoom', plot_width = tup_fig_worldmap_size[0], plot_height = tup_fig_worldmap_size[1],
+                                title = str_fig_worldmap_title)
+    ### Tuning worldmap figure:
+    fig_world_map.axis.visible = False
+    fig_world_map.xgrid.visible = False
+    fig_world_map.ygrid.visible = False
+    fig_world_map.toolbar.autohide = True
+    ### Creating hover inspection to worldmap figure:    
+    fig_world_map.add_tools(b_md.HoverTool(tooltips = [('Country', '@Country_Name'), ('MSCI Class', '@Class'), ('Regressor beta (equal weights)', '@None{0,0.000}'),
+                                                       ('Regressor beta (by date weights)', '@By_Date{0,0.000}'), ('Regressor beta (similarity weights)', '@By_Value{0,0.000}')], 
+                                           formatters = {'None': 'numeral', 'By_Date': 'numeral', 'By_Value': 'numeral'}))
+    ### Drawing world map:
+    patches_world_map = fig_world_map.patches('Coord_X_Array', 'Coord_Y_Array', source = src_country_coords,
+                                              color = {'field': 'Active', 'transform': linear_cm_beta}, fill_alpha = 1.0, line_color = 'lightgray', 
+                                              line_width = 1.0)
+    ### Adding beta value color bar to beta plot figure: 
+    color_bar_class = b_md.ColorBar(color_mapper = linear_cm_beta, label_standoff = 8, width = 20, height = tup_fig_worldmap_size[1] - 100,
+                                    border_line_color = None, orientation = 'vertical', location = (0, 50),
+                                    ticker = b_md.AdaptiveTicker(desired_num_ticks = int(len(linear_cm_beta.palette) / 5)),
+                                    formatter = b_md.NumeralTickFormatter(format = '.00'))
+    fig_world_map.add_layout(color_bar_class, 'right')
+    ### Drawing and tuning date slider widget, creating a trigger for it's changes:
+    callback_date_slider = CustomJS(args = dict(fig_map_to_update = fig_world_map, title_map_main_part = str_fig_worldmap_title, 
+                                                fig_plot_to_update = fig_beta_plot, span_plot = span_current_date,
+                                                cds_world = src_country_coords, cds_transit = src_meta_transit, cds_plot = src_beta_evolution,
+                                                arr_date_classes = dict_date_classes, arr_date_beta_general = dict_beta_general),
+                                    code = """                             
+                                           var date_chosen = new Date(cb_obj.value);
+                                           var class_selected = cds_transit.data['Class'];
+                                           var weights_selected = cds_transit.data['Weights'];
+                                           var arr_months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                                             'July', 'August', 'September', 'October', 'November', 'December'];
+                                           var date_month_name = arr_months[date_chosen.getMonth()]; 
+                                           fig_map_to_update.title.text = title_map_main_part + ': ' + date_chosen.getFullYear() + ' / ' + date_month_name;
+                                           var date_year_month = date_chosen.getFullYear().toString();
+                                           if (date_chosen.getMonth() > 8)
+                                           {
+                                               date_year_month = date_year_month + '-' + (date_chosen.getMonth() + 1).toString();
+                                           }
+                                           else
+                                           {
+                                               date_year_month = date_year_month + '-' + '0' + (date_chosen.getMonth() + 1).toString();
+                                           }                                  
+                                           cds_transit.data['Year_Month'] = date_year_month;                                       
+                                           cds_world.data['Class'] = arr_date_classes[date_year_month];
+                                           cds_world.data['None'] = arr_date_beta_general[class_selected]['None'][date_year_month];
+                                           cds_world.data['By_Date'] = arr_date_beta_general[class_selected]['By_Date'][date_year_month];
+                                           cds_world.data['By_Value'] = arr_date_beta_general[class_selected]['By_Value'][date_year_month];                         
+                                           cds_world.data['Active'] = cds_world.data[weights_selected];
+                                           cds_world.change.emit();                               
+                                           cds_transit.change.emit(); 
+                                           fig_map_to_update.change.emit();           
+                                           span_plot.location = cb_obj.value;
+                                           span_plot.change.emit();
+                                           fig_plot_to_update.change.emit();                                       
+                                           """)
+    date_min = df_beta_long.index.get_level_values(level = 0).min()
+    date_max = df_beta_long.index.get_level_values(level = 0).max()
+    slider_dates = DateSlider(title = 'Date to show classes membership', width = tup_fig_worldmap_size[0] - 50, start = date_min, end = date_max, step = 1, value = date_max)
+    slider_dates.callback_policy = 'throttle'
+    slider_dates.js_on_change('value', callback_date_slider)
+    slider_dates.tooltips = False
+    ### Creating select widget for choosing class tuning (including connection between selected value and range slider boundaries, figure plots, figure boundaries, figure title):
+    callback_class_select = CustomJS(args = dict(fig_map_to_update = fig_world_map, fig_plot_to_update = fig_beta_plot, title_plot_main_part = str_fig_beta_title,
+                                                 cds_world = src_country_coords, cds_transit = src_meta_transit, 
+                                                 cds_full = src_beta_evolution, cds_class_plot = src_class_average,
+                                                 arr_classes_names = dict_classes_select, arr_date_beta_general = dict_beta_general,
+                                                 arr_classes_mirror = dict_classes_mirror, arr_weights_mirror = dict_weights_mirror),
+                                     code = """
+                                            var date_year_month = cds_transit.data['Year_Month'];
+                                            var class_selected = arr_classes_names[cb_obj.value];
+                                            var weights_selected = cds_transit.data['Weights'];                                        
+                                            cds_world.data['None'] = arr_date_beta_general[class_selected]['None'][date_year_month];
+                                            cds_world.data['By_Date'] = arr_date_beta_general[class_selected]['By_Date'][date_year_month];
+                                            cds_world.data['By_Value'] = arr_date_beta_general[class_selected]['By_Value'][date_year_month];                         
+                                            cds_world.data['Active'] = cds_world.data[weights_selected];     
+                                            cds_transit.data['Class'] = class_selected;                                           
+                                            cds_world.change.emit();                               
+                                            cds_transit.change.emit(); 
+                                            fig_map_to_update.change.emit();
+                                            fig_plot_to_update.title.text = title_plot_main_part + arr_classes_mirror[class_selected] + ' / '
+                                            fig_plot_to_update.title.text = fig_plot_to_update.title.text + arr_weights_mirror[weights_selected];
+                                            cds_class_plot.data['Year_Month'] = [];
+                                            cds_class_plot.data['Class'] = [];
+                                            cds_class_plot.data['Code_Long'] = [];
+                                            cds_class_plot.data['None'] = [];
+                                            cds_class_plot.data['By_Date'] = [];
+                                            cds_class_plot.data['By_Value'] = [];
+                                            cds_class_plot.data['Active'] = [];                                        
+                                            for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                            {
+                                                if ((cds_full.data['Class'][iter_counter] == class_selected) && (cds_full.data['Code_Long'][iter_counter] == 'CLASS'))
+                                                {
+                                                    cds_class_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                    cds_class_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                    cds_class_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                    cds_class_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                    cds_class_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                    cds_class_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                    cds_class_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                }
+                                            }
+                                            cds_class_plot.change.emit();                                     
+                                            fig_plot_to_update.change.emit();
+                                            """)
+    select_class = Select(title = 'Select MSCI class to show:', options = arr_classes_select, value = arr_classes_select[-1], callback = callback_class_select)
+    ### Creating select widget for choosing country (including connection between selected value and range slider boundaries, figure plots, figure boundaries, figure title):
+    callback_weights_select = CustomJS(args = dict(fig_map_to_update = fig_world_map, fig_plot_to_update = fig_beta_plot, title_plot_main_part = str_fig_beta_title, 
+                                                   cds_world = src_country_coords, cds_transit = src_meta_transit, 
+                                                   cds_full = src_beta_evolution, cds_class_plot = src_class_average, cds_country_plot = src_country_chosen,
+                                                   arr_weights_names = dict_weights_select, arr_date_beta_general = dict_beta_general,                                      
+                                                   arr_classes_mirror = dict_classes_mirror, arr_weights_mirror = dict_weights_mirror),
+                                       code = """
+                                              var date_year_month = cds_transit.data['Year_Month'];
+                                              var class_selected = cds_transit.data['Class'];
+                                              var country_code = cds_transit.data['Country'];                                                                                  
+                                              var weights_selected = arr_weights_names[cb_obj.value];                                            
+                                              cds_world.data['Active'] = cds_world.data[weights_selected];
+                                              cds_transit.data['Weights'] = weights_selected;
+                                              cds_transit.change.emit();
+                                              cds_world.change.emit();                                       
+                                              fig_map_to_update.change.emit();
+                                              fig_plot_to_update.title.text = title_plot_main_part + arr_classes_mirror[class_selected] + ' / '
+                                              fig_plot_to_update.title.text = fig_plot_to_update.title.text + arr_weights_mirror[weights_selected];
+                                              cds_class_plot.data['Year_Month'] = [];
+                                              cds_class_plot.data['Class'] = [];
+                                              cds_class_plot.data['Code_Long'] = [];
+                                              cds_class_plot.data['None'] = [];
+                                              cds_class_plot.data['By_Date'] = [];
+                                              cds_class_plot.data['By_Value'] = [];
+                                              cds_class_plot.data['Active'] = [];                                        
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Class'][iter_counter] == class_selected) && (cds_full.data['Code_Long'][iter_counter] == 'CLASS'))
+                                                  {
+                                                      cds_class_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_class_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_class_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_class_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_class_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_class_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_class_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }
+                                              cds_class_plot.change.emit();
+                                              cds_country_plot.data['Year_Month'] = [];
+                                              cds_country_plot.data['Class'] = [];
+                                              cds_country_plot.data['Code_Long'] = [];
+                                              cds_country_plot.data['None'] = [];
+                                              cds_country_plot.data['By_Date'] = [];
+                                              cds_country_plot.data['By_Value'] = [];
+                                              cds_country_plot.data['Active'] = []; 
+                                              for (var iter_counter = 0; iter_counter <= cds_full.get_length(); iter_counter++)
+                                              {
+                                                  if ((cds_full.data['Code_Long'][iter_counter] == country_code))
+                                                  {
+                                                      cds_country_plot.data['Year_Month'].push(cds_full.data['Year_Month'][iter_counter]);
+                                                      cds_country_plot.data['Class'].push(cds_full.data['Class'][iter_counter]);
+                                                      cds_country_plot.data['Code_Long'].push(cds_full.data['Code_Long'][iter_counter]);
+                                                      cds_country_plot.data['None'].push(cds_full.data['None'][iter_counter]);
+                                                      cds_country_plot.data['By_Date'].push(cds_full.data['By_Date'][iter_counter]);
+                                                      cds_country_plot.data['By_Value'].push(cds_full.data['By_Value'][iter_counter]);
+                                                      cds_country_plot.data['Active'].push(cds_full.data[weights_selected][iter_counter]);
+                                                  }
+                                              }                                          
+                                              cds_country_plot.change.emit();  
+                                              fig_plot_to_update.change.emit();                                          
+                                              """)
+    select_weights = Select(title = 'Select way of weights allocation:', options = arr_weights_select, value = arr_weights_select[0], callback = callback_weights_select)
+    ### Constructing common layout: 
+    layout_world = b_col(b_row(widgetbox(select_class), widgetbox(select_weights)), fig_world_map, widgetbox(slider_dates), fig_beta_plot, widgetbox(select_country))
+
+    return layout_world 

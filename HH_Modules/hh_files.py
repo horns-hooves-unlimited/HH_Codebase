@@ -57,7 +57,7 @@ def hh_get_xlsx_risk_events(source_file_path, tab_name):
     return df_risk_events
 
 
-def hh_get_country_codes():
+def hh_get_country_codes(use_local_copy = False):
     """
     Version 0.02 2019-04-22
     
@@ -66,11 +66,14 @@ def hh_get_country_codes():
     OUTPUT:
       df_result (pd.DataFrame) - data table
     INPUT:
+      use_local_copy (boolean) - to use or not local copy of site (for example, if it is unavailable)
     """ 
     
     import pandas as pd
-    
-    url_country_code = 'https://countrycode.org/'
+    if (use_local_copy):
+        url_country_code = 'Data_Files/Source_Files/countrycode.html'
+    else:
+        url_country_code = 'https://countrycode.org/'
     df_full_codes = pd.read_html(url_country_code, index_col = 'COUNTRY')[0]
     df_full_codes[['ISO SHORT', 'ISO LONG']] = df_full_codes['ISO CODES'].str.split(' / ', expand = True)
     df_result = df_full_codes[['ISO SHORT', 'ISO LONG']]      
