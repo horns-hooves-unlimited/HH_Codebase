@@ -180,7 +180,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     FUNCTIONALITY: 
       1) Calculates rolling means, deviations and z scores for source data vector
       2) Winsorizing z data vector for each rolling window
-      2) Creating z matrix from z winsorized data vectors for each rolling window
+      3) Creating z matrix from z winsorized data vectors for each rolling window
     OUTPUT:
       df_z_score_res (pd.DataFrame) - set of data vectors:
             'Mean' (pd.Series) - rolling means with defined window parameters
@@ -297,3 +297,98 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
     if (show_report):    
         print('hh_rolling_z_score: Calculating Z Score data with winsor_option', winsor_option, 'and fill_option', fill_option, 'performed successfully')
     return [df_z_score_res, df_z_matrix]
+
+
+def hh_simple_weighted_average(ser_to_manage, ser_weights):
+    """
+    Version 0.01 2019-06-14
+    
+    FUNCTIONALITY: 
+      Calculates weighted average for data vector
+    OUTPUT:
+      num_result (float) - result of weighted average performing
+    INPUT:
+      ser_to_manage (pd.Series) - source data vector
+      ser_weights (pd.Series) - weights vector to apply to source data vector
+    """
+
+    import numpy as np
+    import pandas as pd    
+        
+    ### Clearing and docking vectors:
+    ser_to_manage_filtered = ser_to_manage.dropna()
+    ser_weights_filtered = ser_weights.dropna()
+    index_filtered = ser_to_manage_filtered.index.intersection(ser_weights_filtered.index)
+    ser_to_manage_filtered = ser_to_manage_filtered[index_filtered]
+    ser_weights_filtered = ser_weights_filtered[index_filtered]
+    ### Result calculating:
+    num_result = ser_to_manage_filtered.dot(ser_weights_filtered) / sum(ser_weights_filtered)
+    
+    return num_result    
+
+
+def hh_simple_standartize(ser_to_manage, ser_weights, arr_truncates, reuse_outliers = False, center_result = True):
+    """
+    Version 0.03 2019-06-18
+    
+    FUNCTIONALITY: 
+      Consistently standartize and winsorize data vector
+    OUTPUT:
+      ser_result (pd.Series) - result of weighted average performing
+      arr_mean (array) - array of mean values for each iteration
+      arr_std (array) - array of standard deviation values for each iteration      
+    INPUT:
+      ser_to_manage (pd.Series) - source data vector
+      ser_weights (pd.Series) - weights vector to apply to source data vector after truncating (winsorizing)
+      arr_truncates (array) - array of consistent truncating (winsorizing) boundaries (by abs)
+      reuse_outliers (boolean) - if to use boundary truncated outliers in next steps (default - False)
+      center_result (boolean) - if to center result series (default - True)
+    """
+
+    import numpy as np
+    import pandas as pd    
+    ### Expanding visibility zone for Python engine to make HH Modules seen:
+    import sys 
+    sys.path.append('../..')    
+    ### Including custom functions:
+    from HH_Modules.hh_ts import hh_simple_weighted_average      
+    
+    ### Arrays of iterations properties:
+    arr_mean = []
+    arr_std = []
+    ### Workhorse and resulting data vectors initialising:
+    ser_data_full = ser_to_manage.copy()
+    ser_data_full = ser_data_full.dropna()
+    ser_data_iter = ser_data_full.copy() 
+    ser_weights_iter = ser_weights.copy()
+    ser_data_full.replace(ser_data_full.values, 0, inplace = True)    
+    ### Looping by boundaries array:
+    for num_bound_iter in arr_truncates:
+        ### Clearing and docking vectors:        
+        index_iter = ser_data_iter.index.intersection(ser_weights_iter.index)
+        ser_data_iter = ser_data_iter[index_iter]
+        ser_weights_iter = ser_weights_iter[index_iter] 
+        ### Properties calculating and saving:
+        num_mean_iter = hh_simple_weighted_average(ser_data_iter, ser_weights_iter)
+        num_std_iter = ser_data_iter.std()
+        arr_mean.append(num_mean_iter)
+        arr_std.append(num_std_iter)
+        ser_data_iter = (ser_data_iter - num_mean_iter) / num_std_iter       
+        ### Standartizing:
+        ser_data_iter[ser_data_iter.abs() >= num_bound_iter] = np.sign(ser_data_iter) * num_bound_iter 
+        if not (reuse_outliers):
+            ### Saving to result and excluding from further calculations truncated values:     
+            ser_data_full.where(ser_data_iter.abs() < num_bound_iter, np.sign(ser_data_iter) * num_bound_iter, inplace = True)
+            ser_data_iter = ser_data_iter[ser_data_iter.abs() < num_bound_iter]           
+    ### Aggregating result:
+    if (reuse_outliers):
+        ser_data_full = ser_data_iter
+    else:     
+        ser_data_full[ser_data_iter.index] = ser_data_iter
+    ### Centering result:
+    if (center_result):      
+        ser_result = ser_data_full - hh_simple_weighted_average(ser_data_full, ser_weights) 
+    else:
+        ser_result = ser_data_full    
+            
+    return [ser_result, arr_mean, arr_std]
