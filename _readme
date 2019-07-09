@@ -6,19 +6,40 @@ Repository description:
 		hh_dates.py: common dates functions library
 		hh_files.py: common files functions library
 		hh_mri: MRI project functions library
-		hh_timeseries.py: common timeseries functions library
+		hh_ts.py: common timeseries functions library		
 	
 	[HH_Projects]: unified folder for all Horns&Hooves project files
 	
 		[01_Market_Risk_Indicator]: MRI project folder
 			[Data_Files]: data files for MRI project
 				[Source_Files]: source data files for MRI project
+					[Geo_Info]: vectorized geographical data for drawing world map (borders)
+					[MSCI_Returns]: Downloaded country level total return indexes
+					countrycode.html: local copy of https://countrycode.org/
+					ison_universe.xlsx: History of ISON class membership changing				
+					mri_data.h5: main source data tables saved to pandas compatible format					
 					mri_data.xlsx: main source data file for MRI project
+					mri_group_z_matrix.h5: matrix of z-values of MRI
+					mri_released_assets.h5: result of MRI calculation on asset level
+					mri_released_groups.h5: result of MRI calculation on group level
+					mri_released_index.h5: result of MRI calculation on index level					
+					msci_expvol.h5: result of MSCI exponential volatility calculation
+					msci_index_countris.xlsx: list of indexes members
+					msci_reclassifications.xlsx: table of historical MSCI reclassification data
+					msci_returns.h5: consolidated MSCI country level 100-based returns data table
+					msci_WLS_mri.h5: result of MSCI regression on MRI regressor
+					Risk events.xlsx: list of risk events history
 				[Test_Files]: data files for testing MRI project
-					bus_dts.xlsx: revision file for comparing MatLab and Python manipulations with business dates
-					bus_nyse_dts.xlsx:	revision file for comparing MatLab and Python manipulations with NYSE closure dates
+
 			_readme: description file for MRI project folder
+			ISON_membership.html: standalone visualization of ISON classes history (bars)
 			MRI_engine.pynb: main executable file for MRI project
-			MRI_showcase.pynb:	demonstration of functionality for MRI project				
-			tester_igharok.pynb:	igharok's file for code exercises		
+			MRI_plot_x: graphical MRI values visualization
+			MRI_showcase.pynb: demonstration of functionality for MRI project				
+			MSCI_beta_evolution.html: standalone visualization of MSCI on MRI regression betas (interactive map) + zip file
+			MSCI_expvol_evolution.html: standalone visualization of MSCI exponential volatility (interactive map) + zip file			
+			MSCI_ISON_membership.html: standalone visualization of MSCI and ISON classes comparative history (bars)			
+			MSCI_membership.html: standalone visualization of MSCI classes history (bars)
+			MSCI_membership_evolution.html: standalone visualization of ISON classes history (interactive map)
+			MSCI vs ISON.xlsx: comparative table of MSCI and ISON classes history
 		
