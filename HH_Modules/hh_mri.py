@@ -2489,7 +2489,8 @@ def hh_msci_efficacy_measures(df_factor, arr_measures, market_caps_path, market_
     df_market_caps.reset_index(level = 'Country', drop = True, inplace = True)
     df_market_caps.drop('INDEX', level = 'Code', inplace = True)
     df_market_caps.sort_index(level = [0, 1], inplace = True)
-    ser_market_caps = df_market_caps.squeeze()       
+    ser_market_caps = df_market_caps.squeeze()
+    ser_market_caps.name = 'Market Caps'
     ### Preparing measures full data vector:
     arr_index_values = [arr_measures, df_factor.index.get_level_values(0).unique().array]
     index_ser_measures_full = pd.MultiIndex.from_product(arr_index_values, names = ['Measure', 'Date'])
@@ -2501,38 +2502,58 @@ def hh_msci_efficacy_measures(df_factor, arr_measures, market_caps_path, market_
             df_cross_both = df_factor.loc[iter_date].dropna(how = 'any')
             if (len(df_cross_both) == 0):
                 iter_result = np.NaN
-            else:
-                arr_cross_factor = df_cross_both['Factor'].values
-                arr_cross_factor_plus_const = sm.add_constant(arr_cross_factor)
-                arr_cross_next = df_cross_both['Next Returns'].values       
+            else:       
                 ### Spearmen information coefficient:
                 if (iter_measure == 'ic_spearman'):
+                    arr_cross_next = df_cross_both['Next Returns'].values                    
+                    arr_cross_factor = df_cross_both['Factor'].values
                     iter_result = ss.spearmanr(arr_cross_factor, arr_cross_next).correlation
                 ### Pearson information coefficient:                            
                 if (iter_measure == 'ic_pearson'):
+                    arr_cross_next = df_cross_both['Next Returns'].values                    
+                    arr_cross_factor = df_cross_both['Factor'].values                    
                     iter_result = ss.pearsonr(arr_cross_factor, arr_cross_next)[0]
                 ### Fama-McBeth cross-sectional regression beta coefficient (equal weighted residuals):                            
                 if (iter_measure == 'fmb_eqw'):
+                    arr_cross_next = df_cross_both['Next Returns'].values                                        
+                    arr_cross_factor_plus_const = sm.add_constant(df_cross_both['Factor'].values)                  
                     arr_weights = np.ones(len(arr_cross_next)).tolist()
                     wls_model = sm.WLS(arr_cross_next, arr_cross_factor_plus_const, weights = arr_weights)
                     wls_results = wls_model.fit()
                     iter_result = wls_results.params[1]                  
                 ### Fama-McBeth cross-sectional regression beta coefficient (equal weighted residuals and standartized factor):
                 if (iter_measure == 'fmb_eqw_std'):
-                    ser_weights = pd.Series(1, df_cross_both.index)
+                    arr_cross_next = df_cross_both['Next Returns'].values                     
+                    ser_weights = pd.Series(1, df_cross_both.index)                   
                     arr_cross_factor_standartized = hh_simple_standartize(df_cross_both['Factor'], ser_weights, arr_const_fmb_trunc,
-                                                                          reuse_outliers = False, center_result = True)[0].values
-#                    if (iter_date.strftime(date_format) == '2000-01-31'):
-#                        print(hh_simple_standartize(df_cross_both['Factor'], ser_weights, arr_const_fmb_trunc,
-#                                                    reuse_outliers = False, center_result = True)[0])                        
+                                                                          reuse_outliers = False, center_result = True)[0].values                       
                     arr_cross_factor_standartized_plus_const = sm.add_constant(arr_cross_factor_standartized)
-                    arr_weights = np.ones(len(arr_cross_next)).tolist()                    
+                    arr_weights = ser_weights.values                   
                     wls_model = sm.WLS(arr_cross_next, arr_cross_factor_standartized_plus_const, weights = arr_weights)
                     wls_results = wls_model.fit()
-                    iter_result = wls_results.params[1]                  
-                    
+                    iter_result = wls_results.params[1] 
+                ### Fama-McBeth cross-sectional regression beta coefficient (market capitalization weighted residuals):                            
+                if (iter_measure == 'fmb_mcap'):                    
+                    df_cross_plus_caps = df_cross_both.join(ser_market_caps.loc['2000-01-31'], how = 'left').dropna(how = 'any')
+                    arr_cross_next = df_cross_plus_caps['Next Returns'].values
+                    arr_cross_factor_plus_const = sm.add_constant(df_cross_plus_caps['Factor'].values)               
+                    arr_weights = df_cross_plus_caps['Market Caps'].values
+                    wls_model = sm.WLS(arr_cross_next, arr_cross_factor_plus_const, weights = arr_weights)
+                    wls_results = wls_model.fit()
+                    iter_result = wls_results.params[1]                            
+                ### Fama-McBeth cross-sectional regression beta coefficient (market capitalization weighted residuals and standartized factor):                            
+                if (iter_measure == 'fmb_mcap_std'):                    
+                    df_cross_plus_caps = df_cross_both.join(ser_market_caps.loc['2000-01-31'], how = 'left').dropna()
+                    arr_cross_next = df_cross_plus_caps['Next Returns'].values
+                    arr_cross_factor_standartized = hh_simple_standartize(df_cross_plus_caps['Factor'], df_cross_plus_caps['Market Caps'], arr_const_fmb_trunc,
+                                                                          reuse_outliers = False, center_result = True)[0].values                     
+                    arr_cross_factor_standartized_plus_const = sm.add_constant(arr_cross_factor_standartized) 
+                    arr_weights = df_cross_plus_caps['Market Caps'].values
+                    wls_model = sm.WLS(arr_cross_next, arr_cross_factor_standartized_plus_const, weights = arr_weights)
+                    wls_results = wls_model.fit()
+                    iter_result = wls_results.params[1]                                           
                 ser_measures_full.loc[pd.IndexSlice[iter_measure, iter_date]] = iter_result  
     print('hh_msci_efficacy_measures:', 'Factor efficacy measures calculated successfully.')
     
     print('hh_msci_efficacy_measures:', 'Factor measures aggregating values calculated successfully.')
-    return ser_market_caps
+    return [ser_measures_full, ser_market_caps]
