@@ -228,7 +228,7 @@ def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_
     Version 0.02 2019-04-25
        
     FUNCTIONALITY: 
-      Forming MSCI history on base of current membership info, reclassifications info and returns start dates    
+      Forming MSCI period form history on base of current membership info, reclassifications info and returns start dates    
     OUTPUT:
       df_country_status (pd.DataFrame) - data set of full MSCI history
     INPUT:
@@ -284,9 +284,47 @@ def hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_
     df_country_status.sort_values(['Member Code', 'Start Date'], axis = 0, inplace = True)
     df_country_status.set_index('Member Code', drop = True, inplace = True)
     
-    print('hh_get_msci_classification_evolution: MSCI membership history successfully formed')
+    print('hh_get_msci_classification_evolution: MSCI membership periodical history successfully formed')
     return df_country_status
 
+
+def hh_get_msci_membership_dates(returns_file_path, returns_key, membership_file_path, reclass_file_path):
+    """
+    Version 0.01 2019-07-11
+       
+    FUNCTIONALITY: 
+      Forming MSCI date by date history on base of current membership info, reclassifications info and returns start dates    
+    OUTPUT:
+      ser_date_membership (pd.Series) - data vector of date by date MSCI country classification history
+    INPUT:
+      returns_file_path (string) - path to HDF5 file containing returns info to get boundary dates for countries returns
+      returns_key (string) - key to object inside the HDF5 file
+      membership_file_path (string) - path to xlsx data file with current MSCI membership info
+      reclass_file_path (string) - path to xlsx data file with current MSCI reclassifications history
+    """
+    
+    import pandas as pd
+    import sys 
+    sys.path.append('../..')
+    from HH_Modules.hh_files import hh_get_msci_membership_evolution
+    ### Preparing periodical membership for melting:        
+    df_history_membership = hh_get_msci_membership_evolution(returns_file_path, returns_key, membership_file_path, reclass_file_path)
+    df_history_membership.drop('Country', axis = 1, inplace = True)
+    df_date_membership = pd.DataFrame(columns = ['Date', 'Code', 'Class'])
+    ### Melting periodical membership:
+    for (iter_code, iter_row) in df_history_membership.reset_index().iterrows():
+        df_iter_membership = pd.DataFrame({'Date': pd.date_range(iter_row['Start Date'], iter_row['End Date']), 
+                                           'Code': iter_row['Member Code'], 'Class': iter_row['Index Name']},
+                                          columns = ['Date', 'Code', 'Class'])
+        ### Aggregating iterational data to common DataFrame:
+        df_date_membership = pd.concat([df_date_membership, df_iter_membership], axis = 0, ignore_index = True)
+    ### Preparing for return format:
+    df_date_membership.sort_values(['Date', 'Code'], inplace = True)
+    df_date_membership.set_index(['Date', 'Code'], inplace = True)    
+    ser_date_membership = df_date_membership.squeeze()
+    
+    print('hh_get_msci_membership_dates: MSCI membership date by date history successfully formed')    
+    return ser_date_membership
 
 def hh_get_ison_universe(source_file_path, df_msci_membership, flag_drop_to_msci = True):
     """

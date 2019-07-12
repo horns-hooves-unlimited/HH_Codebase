@@ -25,7 +25,7 @@ def hh_create_bus_dates(date_type = 'string', begin_date = '1900-01-01', end_dat
     
     date_format = '%Y-%m-%d'    
     ### Converting dates to common string format in case of date formatting:
-    if date_type == 'string': 
+    if date_type == 'string':   
         range_begin_date = begin_date
         range_end_date = end_date
     else:
