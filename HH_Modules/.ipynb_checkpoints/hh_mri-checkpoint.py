@@ -2290,7 +2290,7 @@ def hh_msci_factors(MSCI_returns_path, MSCI_returns_key, arr_factors, df_beta_al
     FUNCTIONALITY: 
       Creating factors data table for MSCI returns
     OUTPUT:
-      ser_returns (pd.Series) - source returns data vector
+      ser_returns (pd.Series) - source realized returns data vector
       dict_factor_pairs_container (array of pd.Dataframe) - array of factor data tables
     INPUT:
       MSCI_returns_path (string) - path to the MSCI returns HDF5 file
