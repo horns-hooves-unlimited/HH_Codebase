@@ -2282,207 +2282,166 @@ def hh_bokeh_MSCI_MRI_beta_map(path_countries_map_shp, df_beta_all, df_country_c
     return layout_world
 
 
-def hh_msci_factors(MSCI_returns_path, MSCI_returns_key, arr_factors, df_beta_all, df_expvol_all, 
-                    ser_date_membership, market_caps_path, market_caps_key, str_class = 'ALL', market_cap_bottom = 0, market_cap_top = 0, period_shift = 1):
+def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM', market_cap_bottom = 0, market_cap_top = 0, period_shift = 1, 
+                    score_all = True, score_grouping = 'market', score_weights = 'equal', score_boundaries = [2.5, 2.0], score_reuse_outliers = False, score_center_result = True):
     """
-    Version 0.03 2019-07-12
+    Version 0.04 2019-07-15
     
     FUNCTIONALITY: 
       Creating factors data table for MSCI returns
     OUTPUT:
-      ser_returns (pd.Series) - source realized returns data vector
-      dict_factor_pairs_container (array of pd.Dataframe) - array of factor data tables
+      df_factors(pd.Dataframe) - factor data table (set of factor pd.Series)
     INPUT:
-      MSCI_returns_path (string) - path to the MSCI returns HDF5 file
-      MSCI_returns_key (string) - data object key to access MSCI USD monthly returns from HDF5 file 
-      arr_factors (array) - list of string factors for comparision with returns(t + period_shift), such as:
-          'month_back' - returns(t);
-          'year_back' - ((1 + returns(t - 11)) * ... * (1 + returns(t)) - 1);
-          'echo_back' - ((1 + returns(t - 8)) * ... * (1 + returns(t - 3)) - 1);
-          'mri_beta_equal_weighted' - MRI equal weighted regression beta;
-          'mri_beta_date_weighted' - MRI date weighted regression beta;
-          'mri_beta_cond_weighted' - MRI similarity weighted regression beta;          
-          'expvol_beta_equal_weighted' - equal weighted exponential volatility;
-          'expvol_beta_date_weighted' - date weighted exponential volatility;
-          'expvol_beta_cond_weighted' - MRI similarity exponential volatility;          
-          'volatility_surprise' - -ln([Date weighted exponential volatility] / [MRI similarity exponential volatility]);      
-      df_beta_all (pd.DataFrame) - table of MSCI on MRI regression betas
-      df_expvol_all (pd.DataFrame) - table of MSCI exponential volatilites
-      ser_date_membership (pd.Series) - table of MSCI membership date by date history
-      market_caps_path (string) - path to the MSCI market caps HDF5 file
-      market_caps_key (string) - data object key to access  MSCI market caps from HDF5 file        
-      str_class (string) - class to generate factors for:
-          'ALL' - all classes (default);
+      dict_factors (dictionary of pd.Series) - named list of string factors and source pd.Series  for factors calculation:
+          'retnmf' - n month forward returns (n = period_shift);
+          'mcap' - market capitalizations;
+          'reversal' - (-1) * ret1mp;
+          'mom12m' - cumulative ret12mp : ret1mp;
+          'mom6mL3m' - cumulative ret9mp : ret4mp;
+          'eventrisk' - (-1) * expvol3m;       
+      ser_date_membership (pd.Series) - MSCI membership history data
+      market_filter (string) - regions to filter factors for:
+          'ALL' - all markets;
+          'ALL-SM' - all markets except standalone countries (default); 
+          'DM+EM' - developed or emerging markets;
           'DM' - developed markets;
           'EM' - emerging markets;
           'FM' - frontier markets;
           'SM' - standalone markets;
       market_cap_bottom (number) - left boundary for market capitalization limitations (default = 0)
-      market_cap_top (number) - right boundary for market capitalization limitations (default = 0 ~ "No limit"):  
-      period_shift (number) - quantity of months to step back for efficacy measures calculating (default = 1)     
+      market_cap_top (number) - right boundary for market capitalization limitations (default = 0 ~ "No limit")
+      period_shift (number) - quantity of months to step back for efficacy measures calculating (default = 1)  
+      score_all - to standartize all of the factors (default = True)
+      score_grouping (string) - way of countries grouping for cross-sectional factors scoring:
+          'market' - scoring each market countries separately (default);      
+          'common' - scoring countries from all markets together;
+      score_weights (string) - `condition for countries weighting for scoring:
+          'equal' - all countries weighted equally;
+          'mcap' - countries weighted by their market capitalization;  
+      score_boundaries(array of numbers) - array of boundaries for scoring (default = [2.5, 2.0])
+      score_reuse_outliers (boolean) - if to use boundary truncated outliers in next steps (default - False)
+      score_center_result (boolean) - if to center result series (default - True)      
     """    
     
     import numpy as np
     import pandas as pd    
-    
-    ### Preparing MSCI data for looping:
-    df_returns = pd.read_hdf(MSCI_returns_path, MSCI_returns_key)    
-    df_returns.reset_index(level = 'Country', drop = True, inplace = True)
-    df_returns.drop('INDEX', level = 'Code', inplace = True)
-    df_returns = df_returns.swaplevel()
-    df_returns.sort_index(level = [0, 1], inplace = True)
-    ser_returns = df_returns.squeeze()   
-    ### From based 100 returns to month-to-month returns
-    for country_iter in ser_returns.index.get_level_values(level = 0).unique():
-        ser_returns[country_iter] = (ser_returns[country_iter] / ser_returns[country_iter].shift(1) - 1)
-    ser_returns.fillna(0, inplace = True)
-    ser_returns = ser_returns.swaplevel(copy = False)
-    ser_returns.sort_index(inplace = True)
-    ser_returns = ser_returns[ser_returns != 0]
-    ### Filtering classes:
-    if (str_class != 'ALL'):
-        df_class_filter = ser_returns.reset_index().merge(ser_date_membership.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
-        df_class_filter = df_class_filter.set_index(['Date', 'Code']).dropna()
-        df_class_filter = df_class_filter[df_class_filter['Class'] == str_class]
-        ser_returns = df_class_filter['Returns'] 
-    ### Preparing test market capitalization data:
-    df_market_caps = pd.read_hdf(market_caps_path, market_caps_key)    
-    df_market_caps.reset_index(level = 'Country', drop = True, inplace = True)
-    df_market_caps.drop('INDEX', level = 'Code', inplace = True)
-    df_market_caps.sort_index(level = [0, 1], inplace = True)
-    ser_market_caps = df_market_caps.squeeze()
-    ser_market_caps.name = 'Market Cap' 
-    ### Filtering market capitalizations:
-    if (market_cap_top > 0):
-        df_class_filter = ser_returns.reset_index().merge(ser_market_caps.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
-        df_class_filter = df_class_filter.set_index(['Date', 'Code']).dropna()
-        df_class_filter = df_class_filter[(df_class_filter['Market Cap'] >= market_cap_bottom) & (df_class_filter['Market Cap'] <= market_cap_top)]
-        ser_returns = df_class_filter['Returns']
-    else:
-        df_class_filter = ser_returns.reset_index().merge(ser_market_caps.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
-        df_class_filter = df_class_filter.set_index(['Date', 'Code']).dropna()
-        df_class_filter = df_class_filter[(df_class_filter['Market Cap'] >= market_cap_bottom)]
-        ser_returns = df_class_filter['Returns']        
-    ### MRI betas and MSCI expvol preparation:
-    df_beta_all = df_beta_all.swaplevel()
-    df_beta_all.sort_index(inplace = True)
-    df_expvol_all = df_expvol_all.swaplevel()
-    df_expvol_all.sort_index(inplace = True)
-    ### Looping containers:
-    dict_factor_pairs_container = {}
-    dict_factor_measures_container = {}
-    ### Kreating constants
-    num_year_months = 12
-    ### Creating "Next Returns" containing table to be merged with factor:
-    df_month_back = ser_returns.to_frame().reset_index(level = 1)
-    df_month_back.index = df_month_back.index.shift(-period_shift, 'BM')    
+    ### Expanding visibility zone for Python engine to make HH Modules seen:
+    import sys 
+    sys.path.append('../..')    
+    ### Importing internal functions:
+    from HH_Modules.hh_ts import hh_simple_standartize  
+    ### Defining loop variants:
+    dict_ser_factor = {}
+    ### Defining constants:
+    num_year_months = 12 
     ### Looping factors:
-    for iter_factor in arr_factors:
-        ### Generating table for "Now / Next" factor:
-        if (iter_factor == 'month_back'):
-            df_iter_base = ser_returns.to_frame().reset_index()
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
-            df_iter_base.rename(columns = {'Returns_x': 'Factor', 'Returns_y': 'Next Returns'}, inplace = True)      
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])   
-        ### Generating table for "Year Back from Now / Next" factor:
-        if (iter_factor == 'year_back'):
-            df_iter_base = ser_returns.to_frame()
-            df_iter_base['Factor'] = np.NaN
-            for iter_index in ser_returns.index:
-                ser_year_back = ser_returns.loc[iter_index[0] - pd.offsets.BMonthEnd(num_year_months - 1) : iter_index[0], iter_index[1]]
-                if (len(ser_year_back) == num_year_months):
-                    df_iter_base.loc[iter_index[0], iter_index[1]]['Factor'] = (ser_year_back + 1).prod() - 1
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])            
-            df_iter_base.drop('Returns_x', axis = 1, inplace = True)
-            df_iter_base.rename(columns = {'Returns_y': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])
-        ### Generating table for "Echo Back from Now / Next" factor:
-        if (iter_factor == 'echo_back'):
-            df_iter_base = ser_returns.to_frame()
-            df_iter_base['Factor'] = np.NaN
-            for iter_index in ser_returns.index:
-                start_index = iter_index[0] - pd.offsets.BMonthEnd(num_year_months * 3 / 4 - 1)
-                end_index = iter_index[0] - pd.offsets.BMonthEnd(num_year_months * 1 / 4)
-                ser_echo_back = ser_returns.loc[start_index : end_index, iter_index[1]]
-                if (len(ser_echo_back) == round(num_year_months / 2)):
-                    df_iter_base.loc[iter_index[0], iter_index[1]]['Factor'] = (ser_echo_back + 1).prod() - 1
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])            
-            df_iter_base.drop('Returns_x', axis = 1, inplace = True)
-            df_iter_base.rename(columns = {'Returns_y': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])
-        ### Generating table for "MRI regression Beta Equal Weighted for Now / Next" factor:
-        if (iter_factor == 'mri_beta_equal_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_beta_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'By_Date', 'By_Value'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'None': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])            
-        ### Generating table for "MRI regression Beta Date Weighted for Now / Next" factor:
-        if (iter_factor == 'mri_beta_date_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_beta_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'None', 'By_Value'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'By_Date': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])     
-        ### Generating table for "MRI regression Beta Conditional Weighted for Now / Next" factor:
-        if (iter_factor == 'mri_beta_cond_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_beta_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'None', 'By_Date'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'By_Value': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])         
-        ### Generating table for "Exponential Volatility Equal Weighted for Now / Next" factor:
-        if (iter_factor == 'expvol_equal_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_expvol_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'By_Date', 'By_Value'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'None': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])            
-        ### Generating table for "Exponential Volatility Date Weighted for Now / Next" factor:
-        if (iter_factor == 'expvol_date_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_expvol_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'None', 'By_Value'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'By_Date': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])     
-        ### Generating table for "Exponential Volatility MRI Conditional Weighted for Now / Next" factor:
-        if (iter_factor == 'expvol_cond_weighted'):
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_expvol_all.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'None', 'By_Date'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'By_Value': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])     
-        ### Generating table for "Exponential Volatility Surprise for Now / Next" factor:
-        if (iter_factor == 'volatility_surprise'):
-            df_expvol_all_full = df_expvol_all.copy()
-            df_expvol_all_full['Surprise'] = -np.log(df_expvol_all_full['By_Date'] / df_expvol_all_full['By_Value'])
-            df_iter_base = pd.DataFrame(np.NaN, index = ser_returns.index, columns = [])
-            df_iter_base = df_iter_base.reset_index()
-            df_iter_base = df_iter_base.merge(df_expvol_all_full.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['DatePoint', 'Country'])
-            df_iter_base.drop(axis = 1, labels = ['Country', 'DatePoint', 'None', 'By_Date', 'By_Value'], inplace = True)
-            df_iter_base = df_iter_base.merge(df_month_back.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])       
-            df_iter_base.rename(columns = {'Surprise': 'Factor', 'Returns': 'Next Returns'}, inplace = True)            
-            df_iter_base = df_iter_base.set_index(['Date', 'Code'])                
-        ### Collecting factor tables to dictinary:
-        dict_factor_pairs_container[iter_factor] = df_iter_base
-        print('hh_msci_factors:', 'Factor', iter_factor, 'data prepared successfully.')
+    for iter_factor in dict_factors:
+        ser_source = dict_factors[iter_factor].copy()
+        if (iter_factor == 'ret1mp'):
+            ser_factor = ser_source
+        if (iter_factor == 'retnmf'):            
+            ser_factor = ser_source.reset_index(level = 1)
+            ser_factor.index = ser_factor.index.shift((-1) * period_shift, 'BM')   
+            ser_factor.set_index(['Code'], append = True, inplace = True)
+            ser_factor = ser_factor.squeeze()
+        if (iter_factor == 'mcap'):
+            ser_factor = ser_source           
+        if (iter_factor == 'reversal'):
+            ser_factor = (-1) * ser_source
+        if (iter_factor == 'mom12m'):
+            ser_factor = pd.Series(np.NaN, index = ser_source.index)            
+            for iter_index in ser_source.index:
+                ser_iter_index = ser_source.loc[iter_index[0] - pd.offsets.BMonthEnd(num_year_months - 1) : iter_index[0], iter_index[1]]
+                ser_iter_index.dropna(inplace = True)
+                if (len(ser_iter_index) > 0):
+                    ser_factor.loc[iter_index[0], iter_index[1]] = pow((ser_iter_index + 1).prod(), 1 / len(ser_iter_index)) - 1
+        if (iter_factor == 'mom6mL3m'):
+            ser_factor = pd.Series(np.NaN, index = ser_source.index)
+            for iter_index in ser_source.index:
+                index_start = iter_index[0] - pd.offsets.BMonthEnd(num_year_months - 4)
+                index_end = iter_index[0] - pd.offsets.BMonthEnd(num_year_months - 9)
+                ser_iter_index = ser_source.loc[index_start : index_end, iter_index[1]]                
+                ser_iter_index.dropna(inplace = True)
+                if (len(ser_iter_index) > 0):
+                    ser_factor.loc[iter_index[0], iter_index[1]] = pow((ser_iter_index + 1).prod(), 1 / len(ser_iter_index)) - 1   
+        if (iter_factor == 'eventrisk'):
+            ser_factor = (-1) * ser_source
+        ### Naming series for future performing:
+        ser_factor.name = iter_factor     
+        print('hh_msci_factors:', 'Factor "', iter_factor, '" data prepared for filtering and scoring.')        
+        ### Filtering by market type:     
+        df_market_filter = ser_factor.reset_index().merge(ser_date_membership.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
+        df_market_filter = df_market_filter.set_index(['Date', 'Code']).dropna()
+        if (market_filter == 'ALL-SM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'DM') | (df_market_filter['Market'] == 'EM') | (df_market_filter['Market'] == 'FM')]
+        if (market_filter == 'DM+EM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'DM') | (df_market_filter['Market'] == 'EM')]  
+        if (market_filter == 'DM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'DM')]  
+        if (market_filter == 'EM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'EM')]  
+        if (market_filter == 'FM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'FM')]  
+        if (market_filter == 'SM'):
+            df_market_filter = df_market_filter[(df_market_filter['Market'] == 'SM')] 
+        ser_factor = df_market_filter[iter_factor].sort_index(level = [0, 1]) 
+        print('hh_msci_factors:', 'Factor "', iter_factor, '" data filtered by market groups.')        
+        ### Filtering by market capitalization:
+        ser_mcaps = dict_factors['mcap']
+        df_cap_filter = ser_factor.reset_index().merge(ser_mcaps.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
+        df_cap_filter = df_cap_filter.set_index(['Date', 'Code']).dropna()
+        if (market_cap_top > 0):
+            df_cap_filter = df_cap_filter[(df_cap_filter['Market Cap'] >= market_cap_bottom) & (df_cap_filter['Market Cap'] <= market_cap_top)]
+        else:
+            df_cap_filter = df_cap_filter[(df_cap_filter['Market Cap'] >= market_cap_bottom)]       
+        ser_factor = df_cap_filter[iter_factor].sort_index(level = [0, 1])
+        print('hh_msci_factors:', 'Factor "', iter_factor, '" data filtered by market capitalizations.')                
+        ### Scoring factor:
+        if (score_all):
+        ### Defining weights for standatize procedure:
+            if (score_weights == 'equal'):
+                ser_weights = pd.Series(1, index = ser_factor.index)
+            if (score_weights == 'mcap'):
+                ser_weights = dict_factors['mcap'].copy()
+            ser_weights.name = 'Weight'
+            arr_ser_scored = []
+            arr_dates = []                
+            ### Scoring for no grouping:            
+            if (score_grouping == 'common'):
+                for iter_date in ser_factor.index.get_level_values(0).unique():
+                    ser_iter_factor = ser_factor.loc[iter_date].dropna()
+                    ser_iter_weights = ser_weights.loc[iter_date].dropna()
+                    if ((ser_iter_factor.count() > 0) & ((ser_iter_weights.count() > 0))):
+                        ser_iter_score = hh_simple_standartize(ser_iter_factor, ser_iter_weights, score_boundaries, score_reuse_outliers, score_center_result)[0]
+                        arr_ser_scored.append(ser_iter_score)
+                        arr_dates.append(iter_date)
+                ser_factor = pd.concat(arr_ser_scored, axis = 0, keys = arr_dates).sort_index(level = [0, 1])
+            ### Scoring for markets grouping:                            
+            if (score_grouping == 'market'):   
+                df_to_score = pd.concat([ser_factor, ser_weights, ser_date_membership], axis = 1, join = 'inner')
+                df_to_score.index.names = ['Date', 'Code']
+                df_to_score.set_index('Market', append = True, inplace = True)
+                df_to_score.sort_index(level = [0, 1, 2], inplace = True)
+                arr_ser_scored = []
+                for iter_date in df_to_score.index.get_level_values(0).unique():
+                    for iter_market in df_to_score.loc[iter_date, :, :].index.get_level_values(2).unique():
+                        df_to_score_iter = df_to_score.loc[iter_date, :, iter_market]
+                        ser_iter_factor = df_to_score_iter[iter_factor].dropna()
+                        ser_iter_weights = df_to_score_iter['Weight'].dropna()
+                    if ((ser_iter_factor.count() > 0) & ((ser_iter_weights.count() > 0))):
+                            ser_iter_score = hh_simple_standartize(ser_iter_factor, ser_iter_weights, score_boundaries, score_reuse_outliers, score_center_result)[0]
+                            ser_iter_score.reset_index('Market', drop = True, inplace = True)
+                            arr_ser_scored.append(ser_iter_score)
+                ser_factor = pd.concat(arr_ser_scored, axis = 0).sort_index(level = [0, 1])
+        ### Aggregating factors to dictionary:    
+        ser_factor.index.names = ['Date', 'Code']    
+        dict_ser_factor[iter_factor] = ser_factor.copy()
+        print('hh_msci_factors:', 'Factor "', iter_factor, '" data scored.')      
+    ### Collecting factor tables to dictinary:
+    df_factors = pd.concat(list(dict_ser_factor.values()), axis = 1, join = 'outer')   
 
-    print('hh_msci_factors:', 'Container for all factors created successfully.')
-    return [ser_returns, dict_factor_pairs_container]
+    print('hh_msci_factors:', 'DataFrame for all factors created successfully.')
+    return df_factors
 
 
 def hh_msci_efficacy_measures(df_factor, arr_measures, market_caps_path, market_caps_key, arr_stats, period_years = 999):

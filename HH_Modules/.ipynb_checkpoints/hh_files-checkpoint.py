@@ -322,6 +322,7 @@ def hh_get_msci_membership_dates(returns_file_path, returns_key, membership_file
     df_date_membership.sort_values(['Date', 'Code'], inplace = True)
     df_date_membership.set_index(['Date', 'Code'], inplace = True)    
     ser_date_membership = df_date_membership.squeeze()
+    ser_date_membership.name = 'Market'
     
     print('hh_get_msci_membership_dates: MSCI membership date by date history successfully formed')    
     return ser_date_membership

@@ -322,7 +322,10 @@ def hh_simple_weighted_average(ser_to_manage, ser_weights):
     ser_to_manage_filtered = ser_to_manage_filtered[index_filtered]
     ser_weights_filtered = ser_weights_filtered[index_filtered]
     ### Result calculating:
-    num_result = ser_to_manage_filtered.dot(ser_weights_filtered) / sum(ser_weights_filtered)
+    if (ser_to_manage_filtered.count() > 0):
+        num_result = ser_to_manage_filtered.dot(ser_weights_filtered) / sum(ser_weights_filtered)
+    else:
+        num_result = 0
     
     return num_result    
 
@@ -392,70 +395,3 @@ def hh_simple_standartize(ser_to_manage, ser_weights, arr_truncates, reuse_outli
         ser_result = ser_data_full    
             
     return [ser_result, arr_mean, arr_std]
-
-
-def hh_efficacy_measures(df_factor, ser_returns, ser_weights, arr_truncates, reuse_outliers = False, center_result = True):
-    """
-    Version 0.03 2019-06-18
-    
-    FUNCTIONALITY: 
-      Consistently standartize and winsorize data vector
-    OUTPUT:
-      ser_result (pd.Series) - result of weighted average performing
-      arr_mean (array) - array of mean values for each iteration
-      arr_std (array) - array of standard deviation values for each iteration      
-    INPUT:
-      ser_to_manage (pd.Series) - source data vector
-      ser_weights (pd.Series) - weights vector to apply to source data vector after truncating (winsorizing)
-      arr_truncates (array) - array of consistent truncating (winsorizing) boundaries (by abs)
-      reuse_outliers (boolean) - if to use boundary truncated outliers in next steps (default - False)
-      center_result (boolean) - if to center result series (default - True)
-    """
-
-    import numpy as np
-    import pandas as pd    
-    ### Expanding visibility zone for Python engine to make HH Modules seen:
-    import sys 
-    sys.path.append('../..')    
-    ### Including custom functions:
-    from HH_Modules.hh_ts import hh_simple_weighted_average      
-    
-    ### Arrays of iterations properties:
-    arr_mean = []
-    arr_std = []
-    ### Workhorse and resulting data vectors initialising:
-    ser_data_full = ser_to_manage.copy()
-    ser_data_full = ser_data_full.dropna()
-    ser_data_iter = ser_data_full.copy() 
-    ser_weights_iter = ser_weights.copy()
-    ser_data_full.replace(ser_data_full.values, 0, inplace = True)    
-    ### Looping by boundaries array:
-    for num_bound_iter in arr_truncates:
-        ### Clearing and docking vectors:        
-        index_iter = ser_data_iter.index.intersection(ser_weights_iter.index)
-        ser_data_iter = ser_data_iter[index_iter]
-        ser_weights_iter = ser_weights_iter[index_iter] 
-        ### Properties calculating and saving:
-        num_mean_iter = hh_simple_weighted_average(ser_data_iter, ser_weights_iter)
-        num_std_iter = ser_data_iter.std()
-        arr_mean.append(num_mean_iter)
-        arr_std.append(num_std_iter)
-        ser_data_iter = (ser_data_iter - num_mean_iter) / num_std_iter       
-        ### Standartizing:
-        ser_data_iter[ser_data_iter.abs() >= num_bound_iter] = np.sign(ser_data_iter) * num_bound_iter 
-        if not (reuse_outliers):
-            ### Saving to result and excluding from further calculations truncated values:     
-            ser_data_full.where(ser_data_iter.abs() < num_bound_iter, np.sign(ser_data_iter) * num_bound_iter, inplace = True)
-            ser_data_iter = ser_data_iter[ser_data_iter.abs() < num_bound_iter]           
-    ### Aggregating result:
-    if (reuse_outliers):
-        ser_data_full = ser_data_iter
-    else:     
-        ser_data_full[ser_data_iter.index] = ser_data_iter
-    ### Centering result:
-    if (center_result):      
-        ser_result = ser_data_full - hh_simple_weighted_average(ser_data_full, ser_weights) 
-    else:
-        ser_result = ser_data_full    
-            
-    return [ser_result, arr_mean, arr_std] 

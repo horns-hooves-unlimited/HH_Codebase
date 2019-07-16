@@ -322,7 +322,10 @@ def hh_simple_weighted_average(ser_to_manage, ser_weights):
     ser_to_manage_filtered = ser_to_manage_filtered[index_filtered]
     ser_weights_filtered = ser_weights_filtered[index_filtered]
     ### Result calculating:
-    num_result = ser_to_manage_filtered.dot(ser_weights_filtered) / sum(ser_weights_filtered)
+    if (ser_to_manage_filtered.count() > 0):
+        num_result = ser_to_manage_filtered.dot(ser_weights_filtered) / sum(ser_weights_filtered)
+    else:
+        num_result = 0
     
     return num_result    
 
