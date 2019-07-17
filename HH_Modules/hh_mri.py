@@ -2282,27 +2282,38 @@ def hh_bokeh_MSCI_MRI_beta_map(path_countries_map_shp, df_beta_all, df_country_c
     return layout_world
 
 
-def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM', market_cap_bottom = 0, market_cap_top = 0, period_shift = 1, 
+def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALLxSM', market_cap_bottom = 0, market_cap_top = 0, period_shift = 1, 
                     score_all = True, score_grouping = 'market', score_weights = 'equal', score_boundaries = [2.5, 2.0], score_reuse_outliers = False, score_center_result = True):
     """
     Version 0.04 2019-07-15
-    
+    CHANGES NEEDED:
+      0) market_filter -> inside of factor calculation (initiate filtering from ser_date_membership!!!)
+      1) market_filter 'ALL-SM' -> 'ALLxSM'
+      2) cap_limits -> not needed here
+      3) 'retnmf' -> measure calculation
+      4) 'period_shift' -> measure calculation
+      5) '_raw' undescore for factors before scoring and add it to output df
+      6) leave factors after scoring without undescore
+      7) score_grouping 'common' -> 'full'
+      8) score_grouping 'market' -> 'within'
+      9) calculate 'expvol' right here if needed for 'lowvol', 'eventrisk' or other factors (transfer all needed parameters by dict_factors)
     FUNCTIONALITY: 
       Creating factors data table for MSCI returns
     OUTPUT:
       df_factors(pd.Dataframe) - factor data table (set of factor pd.Series)
     INPUT:
-      dict_factors (dictionary of pd.Series) - named list of string factors and source pd.Series  for factors calculation:
+      dict_factors (dictionary of pd.Series) - named list of string factors and source pd.Series for factors calculation:
           'retnmf' - n month forward returns (n = period_shift);
           'mcap' - market capitalizations;
           'reversal' - (-1) * ret1mp;
           'mom12m' - cumulative ret12mp : ret1mp;
           'mom6mL3m' - cumulative ret9mp : ret4mp;
           'eventrisk' - (-1) * expvol3m;       
+          'lowvol' - (-1) * expvol24m;          
       ser_date_membership (pd.Series) - MSCI membership history data
       market_filter (string) - regions to filter factors for:
-          'ALL' - all markets;
-          'ALL-SM' - all markets except standalone countries (default); 
+          'ALL' - all countries;
+          'ALLxSM' - all markets except standalone countries (default); 
           'DM+EM' - developed or emerging markets;
           'DM' - developed markets;
           'EM' - emerging markets;
@@ -2320,7 +2331,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM',
           'mcap' - countries weighted by their market capitalization;  
       score_boundaries(array of numbers) - array of boundaries for scoring (default = [2.5, 2.0])
       score_reuse_outliers (boolean) - if to use boundary truncated outliers in next steps (default - False)
-      score_center_result (boolean) - if to center result series (default - True)      
+      score_center_result (boolean) - if to center result series (default - True)            
     """    
     
     import numpy as np
@@ -2333,7 +2344,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM',
     ### Defining loop variants:
     dict_ser_factor = {}
     ### Defining constants:
-    num_year_months = 12 
+    num_year_months = 12
     ### Looping factors:
     for iter_factor in dict_factors:
         ser_source = dict_factors[iter_factor].copy()
@@ -2372,7 +2383,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM',
         ### Filtering by market type:     
         df_market_filter = ser_factor.reset_index().merge(ser_date_membership.reset_index(), how = 'left', left_on = ['Date', 'Code'], right_on = ['Date', 'Code'])
         df_market_filter = df_market_filter.set_index(['Date', 'Code']).dropna()
-        if (market_filter == 'ALL-SM'):
+        if (market_filter == 'ALLxSM'):
             df_market_filter = df_market_filter[(df_market_filter['Market'] == 'DM') | (df_market_filter['Market'] == 'EM') | (df_market_filter['Market'] == 'FM')]
         if (market_filter == 'DM+EM'):
             df_market_filter = df_market_filter[(df_market_filter['Market'] == 'DM') | (df_market_filter['Market'] == 'EM')]  
@@ -2428,7 +2439,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALL-SM',
                         df_to_score_iter = df_to_score.loc[iter_date, :, iter_market]
                         ser_iter_factor = df_to_score_iter[iter_factor].dropna()
                         ser_iter_weights = df_to_score_iter['Weight'].dropna()
-                    if ((ser_iter_factor.count() > 0) & ((ser_iter_weights.count() > 0))):
+                        if ((ser_iter_factor.count() > 0) & ((ser_iter_weights.count() > 0))):
                             ser_iter_score = hh_simple_standartize(ser_iter_factor, ser_iter_weights, score_boundaries, score_reuse_outliers, score_center_result)[0]
                             ser_iter_score.reset_index('Market', drop = True, inplace = True)
                             arr_ser_scored.append(ser_iter_score)
