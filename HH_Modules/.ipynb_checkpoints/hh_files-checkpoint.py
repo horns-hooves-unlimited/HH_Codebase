@@ -313,7 +313,7 @@ def hh_get_msci_membership_dates(returns_file_path, returns_key, membership_file
     df_date_membership = pd.DataFrame(columns = ['Date', 'Code', 'Class'])
     ### Melting periodical membership:
     for (iter_code, iter_row) in df_history_membership.reset_index().iterrows():
-        df_iter_membership = pd.DataFrame({'Date': pd.date_range(iter_row['Start Date'], iter_row['End Date']), 
+        df_iter_membership = pd.DataFrame({'Date': pd.date_range(iter_row['Start Date'], iter_row['End Date'], freq = 'BM'), 
                                            'Code': iter_row['Member Code'], 'Class': iter_row['Index Name']},
                                           columns = ['Date', 'Code', 'Class'])
         ### Aggregating iterational data to common DataFrame:
