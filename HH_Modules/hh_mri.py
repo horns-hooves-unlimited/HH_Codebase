@@ -103,9 +103,9 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
       8) Saving group z-matrix to HDF5 file with reseted index because of HDF5 limitations (index is in 0 column) for further calculations
       9) Calculating percentile data vector for each group z-matrix
     OUTPUT:
-      df_asset_standartized (pd.DataFrame) - collection of standartized z-scores (pd.Timeseries) for all assets
+      df_asset_standartized (pd.DataFrame) - collection of standartized z-scores (pd.Series) for all assets
       df_group_mean_z_diag (pd.DataFrame) - collection of diagonales of group's z matrices for all groups    
-      df_group_percentiled (pd.DataFrame) - collection of percentiled group's z matrices (pd.Timeseries) for all groups 
+      df_group_percentiled (pd.DataFrame) - collection of percentiled group's z matrices (pd.Series) for all groups 
     INPUT:
       df_model_asset (pd.DataFrame) - asset list and weights descripted at model
       df_selected_data (pd.DataFrame) - main work dataset - result of data import from source file and next transormations
@@ -162,7 +162,7 @@ def hh_standartize_mri_data(df_model_asset, df_selected_data, date_to_start, MRI
         bool_base_asset = True
         arr_asset_matrix_container = []
         arr_asset_codes = []
-        ### Standartizing cycle on asset level with the group:
+        ### Standartizing cycle on asset level within the group:
         for (asset_index, asset_code) in df_asset_group['Asset Code'].iteritems():
             ### Assignment of base asset data set:
             if (bool_base_asset):

@@ -24,3 +24,10 @@ HH_Modules/.ipynb_checkpoints/hh_files-checkpoint.py
 HH_Modules/__pycache__/hh_files.cpython-37.pyc
 HH_Modules/__pycache__/hh_mri.cpython-37.pyc
 HH_Projects/01_Market_Risk_Indicator/.ipynb_checkpoints/MRI_showcase-checkpoint.ipynb
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_data_backup.h5
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_group_z_matrix_backup.h5
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_group_z_matrix_backup_old.h5
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_released_assets_backup.h5
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_released_groups_backup.h5
+HH_Projects/01_Market_Risk_Indicator/Data_Files/Source_Files/mri_released_index_backup.h5
+HH_Projects/01_Market_Risk_Indicator/.ipynb_checkpoints/MRI_generator-checkpoint.ipynb

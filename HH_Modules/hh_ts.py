@@ -198,7 +198,7 @@ def hh_rolling_z_score(ser_to_manage, min_wnd, max_wnd, winsor_option = 'percent
             'value' - as scalar values without limitations
       winsor_bottom (integer) - bottom boundary of preliminary calculated z-scores to set minimal outliers
       winsor_top (integer) - top boundary of preliminary calculated z-scores to set maximal outliers      
-      fill_option (string) - winorized z vector filling defining rule:
+      fill_option (string) - winsorized z vector filling defining rule:
              'standard' - only diagonal values of z matrix             
              'backfill' - diagonal values of z matrix added with values of first not NaN column of z matrix
       show_report (boolean) - flag of showing function resulting report: 
