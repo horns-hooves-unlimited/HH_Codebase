@@ -2409,7 +2409,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALLxSM',
         print('hh_msci_factors:', 'Factor "', iter_factor, '" data filtered by market capitalizations.')                
         ### Scoring factor:
         if (score_all):
-        ### Defining weights for standatize procedure:
+        ### Defining weights for standartize procedure:
             if (score_weights == 'equal'):
                 ser_weights = pd.Series(1, index = ser_factor.index)
             if (score_weights == 'mcap'):

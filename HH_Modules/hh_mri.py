@@ -2352,7 +2352,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALLxSM',
             ser_factor = ser_source
         if (iter_factor == 'retnmf'):            
             ser_factor = ser_source.reset_index(level = 1)
-            ser_factor.index = ser_factor.index.shift((-1) * period_shift, 'BM')   
+            ser_factor.index = ser_factor.index.shift((-1) * period_shift, 'BM')
             ser_factor.set_index(['Code'], append = True, inplace = True)
             ser_factor = ser_factor.squeeze()
         if (iter_factor == 'mcap'):
@@ -2409,7 +2409,7 @@ def hh_msci_factors(dict_factors, ser_date_membership, market_filter = 'ALLxSM',
         print('hh_msci_factors:', 'Factor "', iter_factor, '" data filtered by market capitalizations.')                
         ### Scoring factor:
         if (score_all):
-        ### Defining weights for standatize procedure:
+        ### Defining weights for standartize procedure:
             if (score_weights == 'equal'):
                 ser_weights = pd.Series(1, index = ser_factor.index)
             if (score_weights == 'mcap'):
