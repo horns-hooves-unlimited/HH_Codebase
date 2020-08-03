@@ -1,0 +1,39 @@
+ser_beta_factor - AR 29-Dec-2006: -0.03799388234480591
+ser_beta_factor - US 29-Dec-2006: -0.058970323931999996
+ser_beta_factor - cross-sectional mean min: -0.13326304502959702
+ser_beta_factor - cross-sectional mean mean: -0.08160695129341232
+ser_beta_factor - cross-sectional mean max: -0.015540779141930442
+ser_beta_factor - cross-sectional mean stdev: 0.023424263557680902
+ser_beta_factor - cross-sectional mean mean: 227
+
+ser_beta_level_perc_factor - AR 29-Dec-2006: -0.03799388234480591
+ser_beta_level_perc_factor - US 29-Dec-2006: -0.058970323931999996
+ser_beta_level_perc_factor - cross-sectional mean min: -0.13326304502959702
+ser_beta_level_perc_factor - cross-sectional mean mean: -0.0120127690149135
+ser_beta_level_perc_factor - cross-sectional mean max: 0.12980528767580887
+ser_beta_level_perc_factor - cross-sectional mean stdev: 0.08421943453343116
+ser_beta_level_perc_factor - cross-sectional mean mean: 227
+
+ser_beta_level_perc_factor - AR 29-Dec-2006: -0.037966603511541935
+ser_beta_level_perc_factor - US 29-Dec-2006: -0.05892235219674526
+ser_beta_level_perc_factor - cross-sectional mean min: -0.13268548135839422
+ser_beta_level_perc_factor - cross-sectional mean mean: -0.011971225391464937
+ser_beta_level_perc_factor - cross-sectional mean max: 0.12928023470208586
+ser_beta_level_perc_factor - cross-sectional mean stdev: 0.08403707357517438
+ser_beta_level_perc_factor - cross-sectional mean mean: 227
+
+ser_beta_momentum_perc_factor - AR 29-Dec-2006: -0.03799388234480591
+ser_beta_momentum_perc_factor - US 29-Dec-2006: -0.058970323931999996
+ser_beta_momentum_perc_factor - cross-sectional mean min: -0.13326304502959702
+ser_beta_momentum_perc_factor - cross-sectional mean mean: -0.020065067085754482
+ser_beta_momentum_perc_factor - cross-sectional mean max: 0.12980528767580887
+ser_beta_momentum_perc_factor - cross-sectional mean stdev: 0.0826648046856053
+ser_beta_momentum_perc_factor - cross-sectional mean mean: 227
+
+ser_beta_momentum_perc_factor - AR 29-Dec-2006: -0.037966603511541935
+ser_beta_momentum_perc_factor - US 29-Dec-2006: -0.05892235219674526
+ser_beta_momentum_perc_factor - cross-sectional mean min: -0.13268548135839422
+ser_beta_momentum_perc_factor - cross-sectional mean mean: -0.020093378601905958
+ser_beta_momentum_perc_factor - cross-sectional mean max: 0.12928023470208586
+ser_beta_momentum_perc_factor - cross-sectional mean stdev: 0.08246601571335199
+ser_beta_momentum_perc_factor - cross-sectional mean mean: 227
