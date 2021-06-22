@@ -1,9 +1,13 @@
 Link to project google folder:https://drive.google.com/open?id=1wjtLBNe24aTrkvCQbIwNflR617kpzaGk
 
 Notebooks description:
-01) EER_&_FX_analyzer_full.ipynb - sources analysis and priroty determination, preliminary factors performing
+01) EER_&_FX_analyzer_full.ipynb - sources analysis and priority determination, preliminary factors performing
 02) EER_sources_export.ipynb - Bloomberg data export and saving to structured format
 03) EER_factors_researcher.ipynb - main factor researching code with factor options tuning
 04) EER_factors_generator.ipynb - approved factor generator in research mode
-05) EER_factors_revision.ipynb - comparing results with MatLab version
-06) EER_factors_runner.ipynb - approved factor generator in real-time daily mode
+05) EER_factors_comparing.ipynb - comparing results with MatLab version
+06) EER_factors_runner_monthly.ipynb - approved factor generator in monthly mode
+07) EER_factors_runner_daily.ipynb - approved factor generator in real-time daily mode
+08) EER_factors_runner_acadian.ipynb - approved factor generator in real-time daily mode for acadian scripts
+09) THA_playground_research.ipynb - time-horizon average performing in research mode
+10) THA_playground_runner_daily.ipynb - time-horizon average performing in real-time daily mode

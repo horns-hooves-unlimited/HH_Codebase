@@ -1,0 +1,13 @@
+Notebooks description:
+01) CDS_analyzer.ipynb - credit default swaps raw data loading and visualizing
+02) CDS_blender.ipynb - credit default swaps raw data transforming and aggregating
+03) Country_risks_source_export.ipynb - Continuum & PRS data export from MS Excel files
+04) Debt_ratings_daily_analyzer.ipynb - collapsed CDs data visualizing (daily mode)
+05) Debt_ratings_factors.ipynb - CDS factors performing in research mode
+06) Debt_ratings_monthly_analyzer.ipynb - collapsed CDs data visualizing (monthly mode)
+07) THA_runner_daily_comparing.ipynb - factor calculations algorythms comparision
+08) THA_runner_daily_modified.ipynb - aggregated factor calculation in optimized Currency project style
+09) THA_runner_daily_monthly.ipynb - aggregated factor calculation in optimized Currency project style without monthe sources filling
+10) THA_runner_daily_old_style.ipynb - aggregated factor calculation in Currency project style
+
+
