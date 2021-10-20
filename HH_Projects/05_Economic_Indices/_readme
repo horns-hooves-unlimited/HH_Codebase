@@ -1,3 +1,9 @@
 Link to project google folder: https://drive.google.com/drive/u/3/folders/15d40rlSYMIv6_IRGfflZUDmZeGP0c7TP
 
-01) Indices_data_extractor.ipynb - Raw data loading, checking, repairing and tranformation
+01) Indices_data_extractor_plots.ipynb - Separate ticker plotting before and after data clearing and transformation
+02) Indices_plots.ipynb - Separate ticker plotting
+03) Indices_data_extractor_diagonals_only.ipynb - Sub type diagonals based on ticker diagonals only (preliminary verion)
+04) Indices_data_extractor_YoY.ipynb - completed conversion source ticker data to global indices through the transformation to YoY data
+05) Indices_data_extractor_MoM.ipynb - completed conversion source ticker data to global indices through the transformation to MoM data
+06) Indices_data_extractor_MoM_regional.ipynb - completed conversion source ticker data to regional indices through the transformation to MoM data
+
